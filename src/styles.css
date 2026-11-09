@@ -1,0 +1,451 @@
+@import "tailwindcss" source(none);
+@source "../src";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+/*
+ * El Descanso del Héroe — design system.
+ * Parchment + wood + pixel RPG UI. All colors are oklch tokens.
+ * Mirrors the public site (eldescansodelheroe.com) so both feel like one place.
+ * Fonts are loaded via <link> in src/routes/__root.tsx.
+ */
+
+@theme inline {
+  --font-sans: "Alegreya Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Cinzel", Georgia, serif;
+  --font-pixel: "Pixelify Sans", ui-monospace, monospace;
+
+  --radius-sm: calc(var(--radius) - 2px);
+  --radius-md: var(--radius);
+  --radius-lg: calc(var(--radius) + 2px);
+  --radius-xl: calc(var(--radius) + 4px);
+
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-ring-offset-background: var(--background);
+
+  /* Brand */
+  --color-wood: var(--wood);
+  --color-wood-dark: var(--wood-dark);
+  --color-wood-light: var(--wood-light);
+  --color-ink: var(--ink);
+  --color-gold: var(--gold);
+  --color-gold-deep: var(--gold-deep);
+  --color-parchment: var(--parchment);
+  --color-parchment-deep: var(--parchment-deep);
+  --color-cream: var(--cream);
+  --color-night: var(--night);
+  --color-seat-open: var(--seat-open);
+  --color-seat-open-foreground: var(--seat-open-foreground);
+  --color-seat-low: var(--seat-low);
+  --color-seat-low-foreground: var(--seat-low-foreground);
+  --color-seat-full: var(--seat-full);
+  --color-seat-full-foreground: var(--seat-full-foreground);
+  --color-seat-closed: var(--seat-closed);
+  --color-seat-closed-foreground: var(--seat-closed-foreground);
+
+  /* Per-section accent band (set by .band-* utilities) */
+  --color-band: var(--band);
+  --color-band-foreground: var(--band-foreground);
+  --color-temp-hot: var(--temp-hot);
+  --color-temp-hot-soft: var(--temp-hot-soft);
+  --color-temp-cold: var(--temp-cold);
+  --color-temp-cold-soft: var(--temp-cold-soft);
+
+  /* Reservation table states */
+  --color-seat-open: var(--seat-open);
+  --color-seat-open-foreground: var(--seat-open-foreground);
+  --color-seat-low: var(--seat-low);
+  --color-seat-low-foreground: var(--seat-low-foreground);
+  --color-seat-full: var(--seat-full);
+  --color-seat-full-foreground: var(--seat-full-foreground);
+  --color-seat-closed: var(--seat-closed);
+  --color-seat-closed-foreground: var(--seat-closed-foreground);
+
+  --shadow-pixel: 0 6px 0 0 var(--wood-dark);
+  --shadow-pixel-sm: 0 4px 0 0 var(--wood-dark);
+  --shadow-glow:
+    0 0 0 3px var(--gold), 0 0 24px 4px color-mix(in oklab, var(--gold) 55%, transparent);
+}
+
+:root {
+  --radius: 0.25rem;
+
+  --parchment: oklch(0.9 0.05 82);
+  --parchment-deep: oklch(0.82 0.07 75);
+  --cream: oklch(0.975 0.02 90);
+  --ink: oklch(0.3 0.03 90);
+  --wood: oklch(0.36 0.06 50);
+  --wood-dark: oklch(0.22 0.04 45);
+  --wood-light: oklch(0.5 0.08 58);
+  --gold: oklch(0.82 0.15 82);
+  --gold-deep: oklch(0.64 0.13 70);
+  --night: oklch(0.2 0.03 60);
+  --seat-open: oklch(0.43 0.15 145);
+  --seat-open-foreground: oklch(0.98 0.02 90);
+  --seat-low: oklch(0.72 0.16 78);
+  --seat-low-foreground: var(--wood-dark);
+  --seat-full: var(--wood-dark);
+  --seat-full-foreground: var(--cream);
+  --seat-closed: oklch(0.48 0.08 25);
+  --seat-closed-foreground: var(--cream);
+
+  --background: var(--parchment);
+  --foreground: var(--ink);
+  --card: var(--cream);
+  --card-foreground: var(--ink);
+  --popover: var(--cream);
+  --popover-foreground: var(--ink);
+  --primary: oklch(0.52 0.19 25);
+  --primary-foreground: oklch(0.97 0.02 90);
+  --secondary: oklch(0.42 0.07 200);
+  --secondary-foreground: oklch(0.97 0.02 90);
+  --muted: oklch(0.85 0.05 80);
+  --muted-foreground: oklch(0.42 0.04 70);
+  --accent: var(--gold);
+  --accent-foreground: var(--wood-dark);
+  --destructive: oklch(0.55 0.21 27);
+  --destructive-foreground: oklch(0.97 0.02 90);
+  --border: oklch(0.7 0.06 70);
+  --input: oklch(0.7 0.06 70);
+  --ring: var(--gold-deep);
+
+  --band: var(--primary);
+  --band-foreground: var(--cream);
+
+  /* Category accents, inspired by the original menu cards */
+  --cat-provision: oklch(0.52 0.19 25);
+  --cat-banquete: oklch(0.4 0.14 258);
+  --cat-bestiario: oklch(0.8 0.15 88);
+  --cat-postres: oklch(0.66 0.2 352);
+  --cat-pociones: oklch(0.4 0.19 292);
+  --cat-lattes: oklch(0.44 0.07 195);
+  --cat-cafes: oklch(0.38 0.08 38);
+  --cat-otros: oklch(0.62 0.17 48);
+  --cat-temporada: oklch(0.6 0.16 50);
+  --cat-sylhar: oklch(0.5 0.15 340);
+  --cat-croacoco: oklch(0.48 0.12 148);
+
+  /* Drink temperature chips (matches the red/blue pills of the original menu) */
+  --temp-hot: oklch(0.56 0.2 30);
+  --temp-hot-soft: oklch(0.93 0.05 40);
+  --temp-cold: oklch(0.55 0.13 240);
+  --temp-cold-soft: oklch(0.93 0.04 230);
+
+  /* Reservation table states (green borrows the site's Croacoco accent) */
+  --seat-open: var(--cat-croacoco);
+  --seat-open-foreground: var(--cream);
+  --seat-low: var(--gold);
+  --seat-low-foreground: var(--wood-dark);
+  --seat-full: var(--primary);
+  --seat-full-foreground: var(--cream);
+  --seat-closed: oklch(0.55 0.03 65);
+  --seat-closed-foreground: var(--cream);
+}
+
+@layer base {
+  * {
+    border-color: var(--color-border);
+  }
+
+  html {
+    scroll-behavior: smooth;
+  }
+
+  body {
+    background-color: var(--parchment);
+    background-image: none;
+    color: var(--color-foreground);
+    font-family: var(--font-sans);
+    font-size: 1.0625rem;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  h1,
+  h2,
+  h3 {
+    font-family: var(--font-display);
+    letter-spacing: 0.01em;
+  }
+
+  ::selection {
+    background: var(--gold);
+    color: var(--wood-dark);
+  }
+}
+
+/* ---------- Utilities ---------- */
+
+@utility pixelated {
+  image-rendering: pixelated;
+}
+
+/* Stepped pixel frame with notched corners */
+@utility pixel-frame {
+  --frame: var(--wood-dark);
+  box-shadow:
+    0 -4px 0 0 var(--frame),
+    0 4px 0 0 var(--frame),
+    -4px 0 0 0 var(--frame),
+    4px 0 0 0 var(--frame),
+    0 10px 0 0 color-mix(in oklab, var(--wood-dark) 35%, transparent);
+}
+
+@utility pixel-frame-gold {
+  --frame: var(--gold-deep);
+  box-shadow:
+    0 -4px 0 0 var(--frame),
+    0 4px 0 0 var(--frame),
+    -4px 0 0 0 var(--frame),
+    4px 0 0 0 var(--frame),
+    0 0 0 8px color-mix(in oklab, var(--gold) 25%, transparent);
+}
+
+@utility wood-panel {
+  background-color: var(--wood);
+  background-image:
+    repeating-linear-gradient(
+      0deg,
+      transparent 0 6px,
+      color-mix(in oklab, var(--wood-dark) 35%, transparent) 6px 8px
+    ),
+    linear-gradient(180deg, var(--wood-light), var(--wood) 40%, var(--wood-dark));
+  color: var(--cream);
+}
+
+@utility parchment-panel {
+  background-color: var(--cream);
+  background-image: radial-gradient(
+    ellipse at center,
+    var(--cream) 40%,
+    color-mix(in oklab, var(--parchment-deep) 70%, var(--cream)) 100%
+  );
+  color: var(--ink);
+}
+
+@utility night-veil {
+  background-image: linear-gradient(
+    180deg,
+    color-mix(in oklab, var(--night) 55%, transparent) 0%,
+    color-mix(in oklab, var(--night) 80%, transparent) 70%,
+    var(--night) 100%
+  );
+}
+
+@utility text-shadow-pixel {
+  text-shadow:
+    2px 2px 0 var(--wood-dark),
+    -1px -1px 0 var(--wood-dark);
+}
+
+@utility ornament-rule {
+  height: 12px;
+  background:
+    linear-gradient(var(--gold-deep), var(--gold-deep)) center / 100% 2px no-repeat,
+    radial-gradient(circle, var(--primary) 4px, transparent 5px) center / 12px 12px no-repeat;
+}
+
+/* Section accent bands */
+@utility band-provision {
+  --band: var(--cat-provision);
+  --band-foreground: var(--cream);
+}
+@utility band-banquete {
+  --band: var(--cat-banquete);
+  --band-foreground: var(--cream);
+}
+@utility band-bestiario {
+  --band: var(--cat-bestiario);
+  --band-foreground: var(--wood-dark);
+}
+@utility band-postres {
+  --band: var(--cat-postres);
+  --band-foreground: var(--cream);
+}
+@utility band-pociones {
+  --band: var(--cat-pociones);
+  --band-foreground: var(--cream);
+}
+@utility band-lattes {
+  --band: var(--cat-lattes);
+  --band-foreground: var(--cream);
+}
+@utility band-cafes {
+  --band: var(--cat-cafes);
+  --band-foreground: var(--cream);
+}
+@utility band-otros {
+  --band: var(--cat-otros);
+  --band-foreground: var(--cream);
+}
+@utility band-temporada {
+  --band: var(--cat-temporada);
+  --band-foreground: var(--cream);
+}
+@utility band-sylhar {
+  --band: var(--cat-sylhar);
+  --band-foreground: var(--cream);
+}
+@utility band-croacoco {
+  --band: var(--cat-croacoco);
+  --band-foreground: var(--cream);
+}
+
+/* Subtle floating animation for the hero logo */
+@keyframes float-soft {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-8px);
+  }
+}
+
+@utility animate-float {
+  animation: float-soft 5s ease-in-out infinite;
+}
+
+@keyframes twinkle {
+  0%,
+  100% {
+    opacity: 0.25;
+    transform: scale(0.8);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@utility animate-twinkle {
+  animation: twinkle 2.6s ease-in-out infinite;
+}
+
+/* ---------- Reservation app additions ---------- */
+
+@keyframes live-blink {
+  0%,
+  60% {
+    opacity: 1;
+  }
+  61%,
+  100% {
+    opacity: 0.25;
+  }
+}
+
+@utility animate-live {
+  animation: live-blink 1.4s steps(1) infinite;
+}
+
+@keyframes seat-flash {
+  0% {
+    box-shadow:
+      0 0 0 3px var(--gold),
+      0 0 24px 6px color-mix(in oklab, var(--gold) 70%, transparent);
+  }
+  100% {
+    box-shadow: 0 0 0 0 transparent;
+  }
+}
+
+@utility animate-seat-flash {
+  animation: seat-flash 1.6s ease-out 1;
+}
+
+@keyframes pixel-shake {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  20%,
+  60% {
+    transform: translateX(-4px);
+  }
+  40%,
+  80% {
+    transform: translateX(4px);
+  }
+}
+
+@utility animate-shake {
+  animation: pixel-shake 0.4s steps(4) 1;
+}
+
+@keyframes pop-in {
+  0% {
+    opacity: 0;
+    transform: translateY(12px) scale(0.97);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@utility animate-pop-in {
+  animation: pop-in 0.35s ease-out both;
+}
+
+@keyframes coin-spin {
+  0%,
+  100% {
+    transform: scaleX(1);
+  }
+  50% {
+    transform: scaleX(0.15);
+  }
+}
+
+@utility animate-coin {
+  animation: coin-spin 1.2s steps(6) infinite;
+}
+
+/* Disabled/locked look for tables before opening or when closed */
+@utility locked {
+  filter: grayscale(0.7) saturate(0.6);
+  opacity: 0.8;
+}
+
+/* Pixel "input" field: cream inset with a wood edge */
+@utility pixel-input {
+  background-color: var(--cream);
+  border: 3px solid var(--wood-dark);
+  box-shadow: inset 0 3px 0 0 color-mix(in oklab, var(--wood-dark) 18%, transparent);
+  color: var(--ink);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+  .animate-float,
+  .animate-twinkle,
+  .animate-live,
+  .animate-coin,
+  .animate-seat-flash,
+  .animate-shake,
+  .animate-pop-in {
+    animation: none;
+  }
+}
