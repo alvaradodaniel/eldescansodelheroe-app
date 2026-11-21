@@ -1,0 +1,6 @@
+{
+  "projects": {
+    "default": "demo-el-descanso",
+    "production": "eldescansodelheroe-e3f9b"
+  }
+}
