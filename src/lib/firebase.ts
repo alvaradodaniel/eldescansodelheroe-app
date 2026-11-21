@@ -12,8 +12,17 @@ type FirebaseConfig = {
   appId: string;
 };
 
-function getRequiredEnv(name: keyof ImportMetaEnv): string {
-  const value = import.meta.env[name];
+const firebaseEnvironment = {
+  VITE_FIREBASE_API_KEY: import.meta.env.VITE_FIREBASE_API_KEY,
+  VITE_FIREBASE_AUTH_DOMAIN: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+  VITE_FIREBASE_PROJECT_ID: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+  VITE_FIREBASE_STORAGE_BUCKET: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+  VITE_FIREBASE_MESSAGING_SENDER_ID: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+  VITE_FIREBASE_APP_ID: import.meta.env.VITE_FIREBASE_APP_ID,
+};
+
+function getRequiredEnv(name: keyof typeof firebaseEnvironment): string {
+  const value = firebaseEnvironment[name];
 
   if (!value) {
     throw new Error(
@@ -29,21 +38,22 @@ const isTest = import.meta.env.MODE === "test";
 const useEmulators = import.meta.env.DEV && !isTest;
 const projectId = isTest
   ? "demo-el-descanso"
-  : import.meta.env["VITE_FIREBASE_PROJECT_ID"] || (useEmulators ? "demo-el-descanso" : "");
+  : firebaseEnvironment.VITE_FIREBASE_PROJECT_ID || (useEmulators ? "demo-el-descanso" : "");
 if (useEmulators && projectId !== "demo-el-descanso") {
   throw new Error("Development is restricted to the demo-el-descanso Firebase project.");
 }
 const firebaseConfig: FirebaseConfig =
   useEmulators || isTest
     ? {
-        apiKey: import.meta.env["VITE_FIREBASE_API_KEY"] || "demo-api-key",
+        apiKey: firebaseEnvironment.VITE_FIREBASE_API_KEY || "demo-api-key",
         authDomain:
-          import.meta.env["VITE_FIREBASE_AUTH_DOMAIN"] || "demo-el-descanso.firebaseapp.com",
+          firebaseEnvironment.VITE_FIREBASE_AUTH_DOMAIN || "demo-el-descanso.firebaseapp.com",
         projectId,
         storageBucket:
-          import.meta.env["VITE_FIREBASE_STORAGE_BUCKET"] || "demo-el-descanso.appspot.com",
-        messagingSenderId: import.meta.env["VITE_FIREBASE_MESSAGING_SENDER_ID"] || "000000000000",
-        appId: import.meta.env["VITE_FIREBASE_APP_ID"] || "1:000000000000:web:demo",
+          firebaseEnvironment.VITE_FIREBASE_STORAGE_BUCKET || "demo-el-descanso.appspot.com",
+        messagingSenderId:
+          firebaseEnvironment.VITE_FIREBASE_MESSAGING_SENDER_ID || "000000000000",
+        appId: firebaseEnvironment.VITE_FIREBASE_APP_ID || "1:000000000000:web:demo",
       }
     : {
         apiKey: getRequiredEnv("VITE_FIREBASE_API_KEY"),

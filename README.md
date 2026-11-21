@@ -47,6 +47,10 @@ Abre Firebase Emulator UI en `http://127.0.0.1:4000` (o Firestore en la pestaña
 
 El nickname solo se usa para presentación. La sesión anónima no puede recuperarse en otro dispositivo. No hay inicio Google ni panel administrativo.
 
+## Cloudflare Workers
+
+La configuraciÃ³n de Cloudflare Workers, los valores de Firebase requeridos en Workers Builds y los comandos de preview/despliegue estÃ¡n documentados en [CLOUDFLARE_DEPLOYMENT.md](CLOUDFLARE_DEPLOYMENT.md).
+
 ## Pruebas y verificaciones
 
 ```sh
