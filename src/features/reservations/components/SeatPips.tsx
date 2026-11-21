@@ -1,4 +1,5 @@
 import { cn } from "@/lib/utils";
+import { UserRound } from "lucide-react";
 
 interface SeatPipsProps {
   capacity: number;
@@ -12,15 +13,17 @@ interface SeatPipsProps {
 export function SeatPips({ capacity, taken, highlight, className }: SeatPipsProps) {
   return (
     <div className={cn("flex flex-wrap gap-1.5", className)} aria-hidden>
-      {Array.from({ length: capacity }, (_, i) => (
+      {Array.from({ length: Math.min(capacity, 24) }, (_, i) => (
         <span
           key={i}
           className={cn(
-            "size-4 border-2 border-wood-dark",
-            i < taken ? "bg-wood" : "bg-cream",
+            "flex size-7 items-center justify-center border-2 border-wood-dark",
+            i < taken ? "bg-wood text-cream" : "bg-cream text-seat-open",
             highlight === i && "bg-gold shadow-glow",
           )}
-        />
+        >
+          <UserRound className="size-4" strokeWidth={2.5} />
+        </span>
       ))}
     </div>
   );

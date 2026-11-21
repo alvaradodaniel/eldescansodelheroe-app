@@ -1,4 +1,5 @@
 import { cn } from "@/lib/utils";
+import { LoaderCircle } from "lucide-react";
 import { isReservable, seatsLeft } from "../table-state";
 import type { GameTable, TableState } from "../types";
 import { SeatPips } from "./SeatPips";
@@ -8,11 +9,12 @@ interface TableCardProps {
   table: GameTable;
   state: TableState;
   selected: boolean;
+  pending?: boolean;
   disabled?: boolean;
   onSelect: (table: GameTable) => void;
 }
 
-export function TableCard({ table, state, selected, disabled = false, onSelect }: TableCardProps) {
+export function TableCard({ table, state, selected, pending = false, disabled = false, onSelect }: TableCardProps) {
   const reservable = isReservable(state);
   const canSelect = reservable && !disabled;
   const left = seatsLeft(table);
@@ -45,8 +47,12 @@ export function TableCard({ table, state, selected, disabled = false, onSelect }
           <p className="mt-0.5 font-pixel text-sm opacity-90">{table.game}</p>
         </div>
         {selected && (
-          <span className="shrink-0 bg-gold px-1.5 py-0.5 font-pixel text-xs text-wood-dark">
-            ✓ Elegida
+          <span className="inline-flex shrink-0 items-center gap-1 bg-gold px-1.5 py-0.5 font-pixel text-xs text-wood-dark">
+            {pending ? (
+              <><LoaderCircle className="size-3 animate-spin" aria-hidden /> Reservando</>
+            ) : (
+              "Tu mesa"
+            )}
           </span>
         )}
       </header>

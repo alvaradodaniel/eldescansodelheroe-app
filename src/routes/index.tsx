@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
+import { CalendarDays, Armchair, BadgeCheck } from "lucide-react";
 
 import { AppFooter } from "@/components/layout/AppFooter";
 import { AppHeader } from "@/components/layout/AppHeader";
@@ -32,9 +33,13 @@ export const Route = createFileRoute("/")({
 });
 
 const STEPS = [
-  { icon: "★", title: "Elige el evento", text: "Consulta fechas y la hora de apertura." },
-  { icon: "⚔", title: "Escoge tu mesa", text: "Mira cuántos lugares quedan en cada una." },
-  { icon: "✓", title: "Asegura tu lugar", text: "Escribe tu alias y recibe tu confirmación." },
+  { icon: CalendarDays, title: "Elige el evento", text: "Consulta fechas y la hora de apertura." },
+  { icon: Armchair, title: "Escoge tu mesa", text: "Mira cuántos lugares quedan en cada una." },
+  {
+    icon: BadgeCheck,
+    title: "Asegura tu lugar",
+    text: "Escribe tu alias una vez y recibe tu confirmación.",
+  },
 ];
 
 function HomePage() {
@@ -127,7 +132,15 @@ function HomePage() {
           </div>
           <div className="mt-10 grid gap-8 sm:grid-cols-2 lg:grid-cols-3">
             {loading ? (
-              <p className="col-span-full text-center text-muted-foreground">Cargando eventos…</p>
+              <div
+                className="col-span-full grid gap-4 sm:grid-cols-2 lg:grid-cols-3"
+                aria-label="Cargando eventos"
+                aria-busy="true"
+              >
+                {Array.from({ length: 3 }, (_, index) => (
+                  <div key={index} className="h-56 animate-pulse bg-card pixel-frame" />
+                ))}
+              </div>
             ) : error ? (
               <p role="alert" className="col-span-full text-center text-destructive">
                 No pudimos cargar los eventos. Comprueba tu conexión e inténtalo de nuevo.
@@ -148,16 +161,20 @@ function HomePage() {
         <section className="mx-auto max-w-6xl px-5 pt-20 sm:px-6">
           <div className="parchment-panel pixel-frame-gold px-6 py-8 sm:px-10">
             <h2 className="text-center text-2xl font-bold sm:text-3xl">¿Cómo funciona?</h2>
-            <ol className="mt-6 grid gap-4 sm:grid-cols-3">
+            <ol className="mt-8 grid gap-5 sm:grid-cols-3">
               {STEPS.map((step, i) => (
-                <li key={step.title} className="flex gap-3">
-                  <span className="flex size-11 shrink-0 items-center justify-center bg-secondary font-pixel text-lg text-secondary-foreground">
-                    {step.icon}
+                <li
+                  key={step.title}
+                  className="flex items-start gap-4 border-2 border-wood-dark/20 bg-card/70 p-4 sm:flex-col sm:gap-3 sm:p-5"
+                >
+                  <span className="flex size-14 shrink-0 items-center justify-center bg-secondary text-secondary-foreground shadow-pixel-sm">
+                    <step.icon className="size-7" strokeWidth={2.5} aria-hidden />
                   </span>
                   <div>
-                    <h3 className="font-display text-lg font-bold">
-                      {i + 1}. {step.title}
-                    </h3>
+                    <p className="font-pixel text-xs uppercase tracking-widest text-primary">
+                      Paso {i + 1}
+                    </p>
+                    <h3 className="mt-1 font-display text-lg font-bold">{step.title}</h3>
                     <p className="text-foreground/80">{step.text}</p>
                   </div>
                 </li>

@@ -1,9 +1,10 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { AlertCircle } from "lucide-react";
+import { AlertCircle, LoaderCircle, PencilLine, UserRound } from "lucide-react";
 import { AppFooter } from "@/components/layout/AppFooter";
 import { AppHeader } from "@/components/layout/AppHeader";
 import { Button } from "@/components/ui/button";
+import { toast } from "sonner";
 import { Countdown } from "@/features/reservations/components/Countdown";
 import { TableCard } from "@/features/reservations/components/TableCard";
 import { useEvent } from "@/features/reservations/firebase/use-event";
@@ -20,7 +21,7 @@ import {
   type ActiveReservation,
 } from "@/features/reservations/firebase/reservation-service";
 import { useAuthUser } from "@/hooks/use-auth-user";
-import { getTableState, isReservable, seatsLeft } from "@/features/reservations/table-state";
+import { getTableState } from "@/features/reservations/table-state";
 
 export const Route = createFileRoute("/eventos/$eventoId")({ component: EventRoute });
 
@@ -56,8 +57,8 @@ function EventPage({ eventoId }: { eventoId: string }) {
   const tableState = useEventTables(eventId);
   const event = eventState.event ? toReservationEvent(eventState.event, clientTime) : null;
   const tables = useMemo(() => tableState.tables.map(toGameTable), [tableState.tables]);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
   const [nickname, setNickname] = useState(readSavedNickname);
+  const [nicknameEditing, setNicknameEditing] = useState(!readSavedNickname());
   const [busy, setBusy] = useState(false);
   const busyRef = useRef(false);
   const reserveObservedRef = useRef(false);
@@ -68,7 +69,7 @@ function EventPage({ eventoId }: { eventoId: string }) {
   const [reservation, setReservation] = useState<ActiveReservation | null>(null);
   const [reservationLoading, setReservationLoading] = useState(true);
   const [cancelAsk, setCancelAsk] = useState(false);
-  const selected = tables.find((table) => table.id === selectedId) ?? null;
+  const [submittingTableId, setSubmittingTableId] = useState<string | null>(null);
 
   useEffect(() => {
     if (opensAtMillis === null || opensAtMillis <= Date.now()) return;
@@ -114,8 +115,8 @@ function EventPage({ eventoId }: { eventoId: string }) {
         if (ownReservation?.status === "confirmed" && reservePendingRef.current) {
           reserveObservedRef.current = true;
           reservePendingRef.current = false;
-          setSelectedId(null);
           setMessage("¡Tu lugar quedó confirmado! La reserva activa aparece en esta página.");
+          toast.success("¡Tu reserva quedó confirmada!");
         }
       },
       () => {
@@ -125,13 +126,17 @@ function EventPage({ eventoId }: { eventoId: string }) {
     );
   }, [eventId, auth.uid]);
 
-  async function submitReservation() {
+  async function submitReservation(tableId: string) {
+    const cleanNickname = nickname.trim();
+    if (cleanNickname.length < 2) {
+      setNicknameEditing(true);
+      toast.error("Antes de reservar, escribe y guarda tu nombre o alias.");
+      return;
+    }
     if (
       !event ||
-      !selected ||
       reservation ||
       reservationLoading ||
-      nickname.trim().length < 2 ||
       !auth.uid ||
       busyRef.current
     )
@@ -140,23 +145,32 @@ function EventPage({ eventoId }: { eventoId: string }) {
     reservePendingRef.current = true;
     reserveObservedRef.current = false;
     setBusy(true);
+    setSubmittingTableId(tableId);
     setMessage("");
     try {
       await reserveSeat({
         eventId: event.id,
-        tableId: selected.id,
-        nickname: nickname.trim(),
+        tableId,
+        nickname: cleanNickname,
       });
       reservePendingRef.current = false;
-      saveNickname(nickname.trim());
+      saveNickname(cleanNickname);
+      setNicknameEditing(false);
       setMessage("¡Tu lugar quedó confirmado! La reserva activa aparece en esta página.");
-      setSelectedId(null);
+      if (!reserveObservedRef.current) {
+        toast.success(`¡Reserva confirmada en ${tables.find((table) => table.id === tableId)?.name ?? "la mesa"}!`);
+      }
     } catch (error) {
-      if (!reserveObservedRef.current) setMessage(reservationErrorMessage(error));
+      if (!reserveObservedRef.current) {
+        const errorMessage = reservationErrorMessage(error);
+        setMessage(errorMessage);
+        toast.error(errorMessage);
+      }
       reservePendingRef.current = false;
     } finally {
       busyRef.current = false;
       setBusy(false);
+      setSubmittingTableId(null);
     }
   }
 
@@ -171,9 +185,14 @@ function EventPage({ eventoId }: { eventoId: string }) {
       await cancelReservation({ eventId: event.id });
       cancelPendingRef.current = false;
       setMessage("Tu reserva fue cancelada y el lugar quedó disponible.");
+      toast.success("Tu reserva fue cancelada.");
       setCancelAsk(false);
     } catch (error) {
-      if (!cancelObservedRef.current) setMessage(reservationErrorMessage(error));
+      if (!cancelObservedRef.current) {
+        const errorMessage = reservationErrorMessage(error);
+        setMessage(errorMessage);
+        toast.error(errorMessage);
+      }
       cancelPendingRef.current = false;
     } finally {
       busyRef.current = false;
@@ -187,9 +206,17 @@ function EventPage({ eventoId }: { eventoId: string }) {
   return (
     <>
       <AppHeader />
-      <main className={selected ? "pb-80" : ""}>
+      <main>
         {eventState.loading ? (
-          <p className="py-16 text-center">Cargando evento…</p>
+          <div
+            className="mx-auto max-w-6xl space-y-4 px-5 py-12 sm:px-6"
+            aria-label="Cargando evento"
+            aria-busy="true"
+          >
+            <div className="h-10 w-2/3 animate-pulse bg-muted" />
+            <div className="h-5 w-1/2 animate-pulse bg-muted" />
+            <div className="h-24 animate-pulse bg-muted" />
+          </div>
         ) : eventState.error ? (
           <StateMessage text="No pudimos cargar este evento. Comprueba tu conexión e inténtalo de nuevo." />
         ) : !event ? (
@@ -236,7 +263,8 @@ function EventPage({ eventoId }: { eventoId: string }) {
               <StateMessage text="No pudimos iniciar tu sesión. Recarga la página para reintentar." />
             ) : null}
             {reservation && (
-              <section className="mx-auto mt-6 max-w-6xl border-2 border-seat-open bg-card p-5 pixel-frame sm:mx-6">
+              <section className="mx-auto mt-6 max-w-6xl px-5 sm:px-6">
+                <div className="border-2 border-seat-open bg-card p-5 pixel-frame">
                 <h2 className="text-xl font-bold">Tienes una reserva activa</h2>
                 <p className="mt-1">
                   {event.name} · {activeTable?.name ?? "Mesa reservada"} · {reservation.nickname}
@@ -267,10 +295,7 @@ function EventPage({ eventoId }: { eventoId: string }) {
                     Cancelar reserva
                   </Button>
                 )}
-                <p className="mt-2 text-xs text-muted-foreground">
-                  La política permite cancelar hasta el inicio del evento; está pendiente de
-                  aprobación del negocio.
-                </p>
+                </div>
               </section>
             )}
             {message && (
@@ -322,7 +347,15 @@ function EventPage({ eventoId }: { eventoId: string }) {
                 </span>
               </div>
               {tableState.loading ? (
-                <p className="py-8">Cargando disponibilidad…</p>
+                <div
+                  className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-3"
+                  aria-label="Cargando mesas"
+                  aria-busy="true"
+                >
+                  {Array.from({ length: 3 }, (_, index) => (
+                    <div key={index} className="h-52 animate-pulse bg-card pixel-frame" />
+                  ))}
+                </div>
               ) : tableState.error ? (
                 <StateMessage text="No pudimos actualizar las mesas. Revisa tu conexión e inténtalo de nuevo." />
               ) : tables.length === 0 ? (
@@ -330,78 +363,97 @@ function EventPage({ eventoId }: { eventoId: string }) {
                   Este evento todavía no tiene mesas publicadas.
                 </p>
               ) : (
-                <div className="mt-5 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-                  {tables.map((table) => {
-                    const state = getTableState(table, event.status);
-                    return (
-                      <TableCard
-                        key={table.id}
-                        table={table}
-                        state={state}
-                        selected={selectedId === table.id}
-                        disabled={busy || reservationLoading || Boolean(reservation)}
-                        onSelect={() => {
-                          setSelectedId(table.id);
-                          setMessage("");
-                        }}
-                      />
-                    );
-                  })}
-                </div>
+                <>
+                  <div className="parchment-panel pixel-frame mt-5 flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="flex items-start gap-3">
+                      <span className="flex size-10 shrink-0 items-center justify-center bg-secondary text-secondary-foreground">
+                        <UserRound className="size-5" aria-hidden />
+                      </span>
+                      <div>
+                        <p className="font-display text-lg font-bold">
+                          ¿Con qué nombre reservamos?
+                        </p>
+                        <p className="text-sm text-muted-foreground">
+                          Lo usarás para identificar tu lugar en el evento.
+                        </p>
+                      </div>
+                    </div>
+                    {nicknameEditing ? (
+                      <div className="flex w-full flex-col gap-2 sm:max-w-sm sm:flex-row">
+                        <input
+                          aria-label="Nombre o alias"
+                          className="h-11 min-w-0 flex-1 pixel-input px-3"
+                          value={nickname}
+                          maxLength={30}
+                          autoComplete="nickname"
+                          disabled={busy}
+                          onChange={(e) => setNickname(e.target.value)}
+                          placeholder="Ej. Sir Galahad"
+                        />
+                        <Button
+                          variant="pixel"
+                          disabled={nickname.trim().length < 2 || busy}
+                          onClick={() => {
+                            const clean = nickname.trim();
+                            setNickname(clean);
+                            saveNickname(clean);
+                            setNicknameEditing(false);
+                          }}
+                        >
+                          Guardar nombre
+                        </Button>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-3">
+                        <span className="font-semibold">{nickname}</span>
+                        <Button
+                          variant="pixel-dark"
+                          className="h-9 w-auto px-3 text-sm"
+                          disabled={busy}
+                          onClick={() => setNicknameEditing(true)}
+                        >
+                          <PencilLine className="mr-1 size-4" aria-hidden />
+                          Editar
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                {nickname.trim().length < 2 && (
+                    <p className="mt-3 text-sm text-destructive">
+                      Escribe un nombre de al menos 2 caracteres para elegir una mesa.
+                    </p>
+                  )}
+                {auth.uid && (
+                    <div className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                      {tables.map((table) => {
+                        const state = getTableState(table, event.status);
+                        return (
+                          <TableCard
+                            key={table.id}
+                            table={table}
+                            state={state}
+                        selected={submittingTableId === table.id || reservation?.tableId === table.id}
+                        pending={submittingTableId === table.id}
+                            disabled={
+                              busy ||
+                              reservationLoading ||
+                              Boolean(reservation) ||
+                              !available
+                            }
+                            onSelect={() => void submitReservation(table.id)}
+                          />
+                        );
+                      })}
+                    </div>
+                  )}
+                </>
               )}
             </section>
-            {selected && !reservation && (
-              <section className="fixed inset-x-0 bottom-0 z-40 mx-auto max-w-lg px-3 pb-3">
-                <div className="parchment-panel pixel-frame-gold p-4">
-                  <p className="font-display text-xl font-bold">{selected.name}</p>
-                  <p>
-                    {selected.game} · {seatsLeft(selected)} de {selected.capacity} lugares
-                    disponibles
-                  </p>
-                  <label className="mt-3 block font-pixel text-sm" htmlFor="nickname">
-                    Nombre o alias
-                  </label>
-                  <input
-                    id="nickname"
-                    className="mt-1 h-11 w-full pixel-input px-3"
-                    value={nickname}
-                    maxLength={30}
-                    autoComplete="nickname"
-                    disabled={busy}
-                    onChange={(e) => setNickname(e.target.value)}
-                    placeholder="Ej. Sir Galahad"
-                  />
-                  <div className="mt-3 flex gap-2">
-                    <Button
-                      variant="pixel"
-                      disabled={
-                        !available ||
-                        !isReservable(getTableState(selected, event.status)) ||
-                        nickname.trim().length < 2 ||
-                        !auth.uid ||
-                        busy
-                      }
-                      onClick={submitReservation}
-                    >
-                      {busy
-                        ? "Procesando…"
-                        : available
-                          ? "Confirmar reserva ▸"
-                          : "Reservaciones aún no abiertas"}
-                    </Button>
-                    <Button
-                      variant="pixel-dark"
-                      disabled={busy}
-                      onClick={() => setSelectedId(null)}
-                    >
-                      Cerrar
-                    </Button>
-                  </div>
-                  <p className="mt-2 text-xs text-muted-foreground">
-                    La disponibilidad se confirma al responder el servidor.
-                  </p>
-                </div>
-              </section>
+            {busy && submittingTableId && (
+              <p className="sr-only" role="status">
+                <LoaderCircle className="animate-spin" />
+                Confirmando la reserva…
+              </p>
             )}
             {event.status === "published" && (
               <p className="mt-6 bg-card p-4 pixel-frame">
