@@ -8,27 +8,27 @@ interface TableCardProps {
   table: GameTable;
   state: TableState;
   selected: boolean;
-  flash: boolean;
+  disabled?: boolean;
   onSelect: (table: GameTable) => void;
 }
 
-export function TableCard({ table, state, selected, flash, onSelect }: TableCardProps) {
+export function TableCard({ table, state, selected, disabled = false, onSelect }: TableCardProps) {
   const reservable = isReservable(state);
+  const canSelect = reservable && !disabled;
   const left = seatsLeft(table);
   const dimmed = state === "full" || state === "closed" || state === "locked";
 
   return (
     <button
       type="button"
-      disabled={!reservable}
+      disabled={!canSelect}
       onClick={() => onSelect(table)}
       aria-pressed={selected}
       className={cn(
         "group relative flex h-full w-full flex-col bg-card text-left pixel-frame transition-transform duration-200",
-        reservable && "cursor-pointer hover:-translate-y-1",
-        !reservable && "cursor-not-allowed",
+        canSelect && "cursor-pointer hover:-translate-y-1",
+        !canSelect && "cursor-not-allowed",
         selected && "pixel-frame-gold -translate-y-1",
-        flash && "animate-seat-flash",
       )}
     >
       <header
@@ -59,6 +59,10 @@ export function TableCard({ table, state, selected, flash, onSelect }: TableCard
       >
         <div className="text-sm text-muted-foreground">
           <span>{table.host}</span>
+          {table.level && (
+            <span className="ml-2 font-semibold text-foreground">· {table.level}</span>
+          )}
+          {table.description && <p className="mt-1">{table.description}</p>}
         </div>
 
         <SeatPips capacity={table.capacity} taken={Math.min(table.taken, table.capacity)} />

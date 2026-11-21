@@ -10,11 +10,17 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as DiagnosticoFirestoreRouteImport } from './routes/diagnostico/firestore'
 import { Route as EventosEventoIdRouteImport } from './routes/eventos.$eventoId'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DiagnosticoFirestoreRoute = DiagnosticoFirestoreRouteImport.update({
+  id: '/diagnostico/firestore',
+  path: '/diagnostico/firestore',
   getParentRoute: () => rootRouteImport,
 } as any)
 const EventosEventoIdRoute = EventosEventoIdRouteImport.update({
@@ -25,27 +31,31 @@ const EventosEventoIdRoute = EventosEventoIdRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/diagnostico/firestore': typeof DiagnosticoFirestoreRoute
   '/eventos/$eventoId': typeof EventosEventoIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/diagnostico/firestore': typeof DiagnosticoFirestoreRoute
   '/eventos/$eventoId': typeof EventosEventoIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/diagnostico/firestore': typeof DiagnosticoFirestoreRoute
   '/eventos/$eventoId': typeof EventosEventoIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/eventos/$eventoId'
+  fullPaths: '/' | '/diagnostico/firestore' | '/eventos/$eventoId'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/eventos/$eventoId'
-  id: '__root__' | '/' | '/eventos/$eventoId'
+  to: '/' | '/diagnostico/firestore' | '/eventos/$eventoId'
+  id: '__root__' | '/' | '/diagnostico/firestore' | '/eventos/$eventoId'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  DiagnosticoFirestoreRoute: typeof DiagnosticoFirestoreRoute
   EventosEventoIdRoute: typeof EventosEventoIdRoute
 }
 
@@ -56,6 +66,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/diagnostico/firestore': {
+      id: '/diagnostico/firestore'
+      path: '/diagnostico/firestore'
+      fullPath: '/diagnostico/firestore'
+      preLoaderRoute: typeof DiagnosticoFirestoreRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/eventos/$eventoId': {
@@ -70,6 +87,7 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  DiagnosticoFirestoreRoute: DiagnosticoFirestoreRoute,
   EventosEventoIdRoute: EventosEventoIdRoute,
 }
 export const routeTree = rootRouteImport

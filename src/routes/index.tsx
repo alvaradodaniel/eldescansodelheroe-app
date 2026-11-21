@@ -1,9 +1,11 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { useEffect, useState } from "react";
 
 import { AppFooter } from "@/components/layout/AppFooter";
 import { AppHeader } from "@/components/layout/AppHeader";
 import { EventCard } from "@/features/reservations/components/EventCard";
-import { MOCK_EVENTS } from "@/features/reservations/mock-data";
+import { usePublishedEvents } from "@/features/reservations/firebase/use-published-events";
+import { toReservationEvent } from "@/features/reservations/firebase/reservation-adapters";
 
 const LOGO_URL = "/images/brand/logo.png";
 const TAVERNA_URL = "/images/brand/taberna.webp";
@@ -36,6 +38,20 @@ const STEPS = [
 ];
 
 function HomePage() {
+  const { events, loading, error } = usePublishedEvents();
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const nextOpening = events
+      .map((event) => event.opensAt.toMillis())
+      .filter((opensAt) => opensAt > now)
+      .sort((a, b) => a - b)[0];
+    if (nextOpening === undefined) return;
+    const timer = window.setTimeout(
+      () => setNow(Date.now()),
+      Math.min(nextOpening - now, 2_147_000_000),
+    );
+    return () => window.clearTimeout(timer);
+  }, [events, now]);
   return (
     <>
       <AppHeader />
@@ -110,9 +126,22 @@ function HomePage() {
             <div className="mx-auto mt-4 w-40 ornament-rule" />
           </div>
           <div className="mt-10 grid gap-8 sm:grid-cols-2 lg:grid-cols-3">
-            {MOCK_EVENTS.map((event) => (
-              <EventCard key={event.id} event={event} />
-            ))}
+            {loading ? (
+              <p className="col-span-full text-center text-muted-foreground">Cargando eventos…</p>
+            ) : error ? (
+              <p role="alert" className="col-span-full text-center text-destructive">
+                No pudimos cargar los eventos. Comprueba tu conexión e inténtalo de nuevo.
+              </p>
+            ) : events.length === 0 ? (
+              <p className="col-span-full text-center text-muted-foreground">
+                No hay eventos publicados por el momento. Vuelve pronto.
+              </p>
+            ) : (
+              events.map((record) => {
+                const event = toReservationEvent(record, now);
+                return <EventCard key={event.id} event={event} />;
+              })
+            )}
           </div>
         </section>
 

@@ -1,8 +1,5 @@
 import { useEffect, useState } from "react";
 
-/** Illustrative offset for the mockup: opening happens ~1 day 3 h from now. */
-const DEMO_OFFSET_MS = ((27 * 60 + 14) * 60 + 37) * 1000;
-
 function split(ms: number) {
   const total = Math.max(0, Math.floor(ms / 1000));
   return {
@@ -13,18 +10,18 @@ function split(ms: number) {
   };
 }
 
-export function Countdown() {
+export function Countdown({ targetAt }: { targetAt: Date }) {
   const [remaining, setRemaining] = useState<number | null>(null);
 
   useEffect(() => {
-    const target = Date.now() + DEMO_OFFSET_MS;
-    const tick = () => setRemaining(target - Date.now());
+    const target = targetAt.getTime();
+    const tick = () => setRemaining(Math.max(0, target - Date.now()));
     tick();
     const id = window.setInterval(tick, 1000);
     return () => window.clearInterval(id);
-  }, []);
+  }, [targetAt]);
 
-  const parts = split(remaining ?? DEMO_OFFSET_MS);
+  const parts = split(remaining ?? Math.max(0, targetAt.getTime() - Date.now()));
 
   return (
     <div className="grid grid-cols-4 gap-2 sm:gap-3" role="timer" aria-live="off">

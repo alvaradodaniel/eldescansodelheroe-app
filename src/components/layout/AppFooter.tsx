@@ -21,7 +21,7 @@ export function AppFooter() {
         </div>
       </div>
       <div className="border-t-2 border-wood-dark/60 py-4 text-center font-pixel text-xs text-cream/60">
-        Mockup de reservaciones · Datos ficticios
+        Reservaciones de mesas · Elige tu mesa y aparta tu lugar
       </div>
     </footer>
   );

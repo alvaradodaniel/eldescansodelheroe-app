@@ -1,7 +1,6 @@
 import { Link } from "@tanstack/react-router";
 
 import { cn } from "@/lib/utils";
-import { eventSeatTotals } from "../table-state";
 import type { EventStatus, ReservationEvent } from "../types";
 
 const STATUS: Record<EventStatus, { label: string; className: string }> = {
@@ -9,13 +8,10 @@ const STATUS: Record<EventStatus, { label: string; className: string }> = {
   published: { label: "◷ Abre pronto", className: "bg-gold text-wood-dark" },
   closed: { label: "Cerrado", className: "bg-seat-closed text-seat-closed-foreground" },
   cancelled: { label: "Cancelado", className: "bg-destructive text-destructive-foreground" },
-  draft: { label: "Borrador", className: "bg-muted text-muted-foreground" },
 };
 
 export function EventCard({ event }: { event: ReservationEvent }) {
-  const totals = eventSeatTotals(event.tables);
   const status = STATUS[event.status];
-  const pct = totals.capacity ? Math.round((totals.taken / totals.capacity) * 100) : 0;
 
   return (
     <Link
@@ -52,17 +48,9 @@ export function EventCard({ event }: { event: ReservationEvent }) {
             <dd className="text-right font-bold">{event.opensAtLabel}</dd>
           </div>
         </dl>
-        <div className="mt-auto">
-          <div className="flex justify-between font-pixel text-sm">
-            <span>{event.tables.length} mesas</span>
-            <span>
-              {totals.left} de {totals.capacity} lugares libres
-            </span>
-          </div>
-          <div className="mt-1.5 h-3 border-2 border-wood-dark bg-cream">
-            <div className="h-full bg-band" style={{ width: `${pct}%` }} />
-          </div>
-        </div>
+        <p className="mt-auto font-pixel text-sm text-muted-foreground">
+          Consulta las mesas y su disponibilidad
+        </p>
         <span className="mt-1 self-start bg-primary px-4 py-1.5 font-pixel text-primary-foreground shadow-pixel-sm">
           Ver mesas ▸
         </span>

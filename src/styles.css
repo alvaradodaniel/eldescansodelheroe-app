@@ -358,21 +358,6 @@
   animation: live-blink 1.4s steps(1) infinite;
 }
 
-@keyframes seat-flash {
-  0% {
-    box-shadow:
-      0 0 0 3px var(--gold),
-      0 0 24px 6px color-mix(in oklab, var(--gold) 70%, transparent);
-  }
-  100% {
-    box-shadow: 0 0 0 0 transparent;
-  }
-}
-
-@utility animate-seat-flash {
-  animation: seat-flash 1.6s ease-out 1;
-}
-
 @keyframes pixel-shake {
   0%,
   100% {
@@ -443,7 +428,6 @@
   .animate-twinkle,
   .animate-live,
   .animate-coin,
-  .animate-seat-flash,
   .animate-shake,
   .animate-pop-in {
     animation: none;

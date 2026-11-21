@@ -18,10 +18,3 @@ export function getTableState(table: GameTable, eventStatus: EventStatus): Table
 export function isReservable(state: TableState): boolean {
   return state === "open" || state === "low";
 }
-
-export function eventSeatTotals(tables: GameTable[]) {
-  const active = tables.filter((t) => !t.closed);
-  const capacity = active.reduce((sum, t) => sum + t.capacity, 0);
-  const taken = active.reduce((sum, t) => sum + Math.min(t.taken, t.capacity), 0);
-  return { capacity, taken, left: capacity - taken };
-}

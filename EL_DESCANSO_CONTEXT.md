@@ -5,6 +5,23 @@
 > permanente para agentes de IA y desarrolladores que trabajen en este
 > repositorio.
 
+## Estado actual del MVP (noviembre de 2026)
+
+La integración Firebase del módulo de reservaciones ya está en curso y es la
+fuente del frontend: Authentication anónima con persistencia local, lectura en
+tiempo real de eventos publicados y mesas, consulta de la reserva propia, y
+reservación/cancelación mediante Cloud Functions. `reserveSeat` y
+`cancelReservation` son operaciones transaccionales existentes y no deben
+duplicarse. Las reglas de producción están en `firestore.rules`; la
+configuración de pruebas de Functions mantiene reglas emuladas cerradas por
+separado. El README describe los comandos actuales para ejecutar el stack
+local.
+
+Pendientes de negocio: confirmar que la cancelación puede hacerse hasta
+`startsAt`, decidir cómo se recupera una sesión anónima entre dispositivos y
+definir la operación administrativa. No se ha autorizado un panel, acceso
+Google ni roles administrativos.
+
 ## 1. Visión general
 
 **El Descanso del Héroe** es una cafetería temática mexicana orientada a
@@ -18,19 +35,19 @@ crear una aplicación independiente para cada necesidad.
 
 La aplicación principal se publicará inicialmente en:
 
--   `app.eldescansodelheroe.com`
+- `app.eldescansodelheroe.com`
 
 El sitio público actual se encuentra en:
 
--   `eldescansodelheroe.com`
+- `eldescansodelheroe.com`
 
 La separación actual es intencional:
 
--   **Sitio público:** menú digital, landing page, información del
-    restaurante, quiz, juegos y otros contenidos principalmente
-    estáticos.
--   **Aplicación:** funciones que requieren datos, autenticación,
-    permisos, operaciones de servidor o persistencia.
+- **Sitio público:** menú digital, landing page, información del
+  restaurante, quiz, juegos y otros contenidos principalmente
+  estáticos.
+- **Aplicación:** funciones que requieren datos, autenticación,
+  permisos, operaciones de servidor o persistencia.
 
 En el futuro podría decidirse consolidar ambas experiencias bajo un
 único dominio. Por eso, evita acoplar la aplicación a su subdominio
@@ -51,11 +68,11 @@ disponibilidad.
 
 ### Volumen esperado
 
--   Aproximadamente 20 personas por evento.
--   Máximo estimado de 30 personas.
--   El tráfico es bajo y no justifica una infraestructura compleja.
--   Aun con poco tráfico, la asignación de lugares debe ser correcta
-    ante solicitudes simultáneas.
+- Aproximadamente 20 personas por evento.
+- Máximo estimado de 30 personas.
+- El tráfico es bajo y no justifica una infraestructura compleja.
+- Aun con poco tráfico, la asignación de lugares debe ser correcta
+  ante solicitudes simultáneas.
 
 ### Flujo esperado del cliente
 
@@ -80,21 +97,21 @@ puede tener una configuración diferente.
 
 ### Datos configurables del evento
 
--   Nombre.
--   Descripción.
--   Fecha del evento.
--   Fecha y hora de apertura de reservaciones.
--   Estado del evento.
--   Mesas asociadas.
+- Nombre.
+- Descripción.
+- Fecha del evento.
+- Fecha y hora de apertura de reservaciones.
+- Estado del evento.
+- Mesas asociadas.
 
 ### Datos configurables de cada mesa
 
--   Nombre o identificador visible.
--   Descripción opcional.
--   Capacidad total.
--   Lugares ocupados o reservados.
--   Lugares disponibles, calculados de forma consistente.
--   Estado.
+- Nombre o identificador visible.
+- Descripción opcional.
+- Capacidad total.
+- Lugares ocupados o reservados.
+- Lugares disponibles, calculados de forma consistente.
+- Estado.
 
 Ejemplo ilustrativo:
 
@@ -112,24 +129,24 @@ La apertura habitual es a las **12:00 del mediodía**.
 Raúl aclaró que la hora de apertura es más importante que la fecha del
 evento. Aun así, ambos datos deben poder configurarse.
 
--   La hora debe ser configurable por evento.
--   La zona horaria del restaurante debe ser `America/Chihuahua`.
--   Antes de la apertura, los usuarios pueden consultar el evento, pero
-    no reservar.
--   La hora oficial debe determinarse con una fuente confiable del
-    servidor, no con el reloj del dispositivo del usuario.
--   Considerar correctamente horario de verano y cambios de zona horaria
-    mediante identificadores IANA, no offsets fijos.
+- La hora debe ser configurable por evento.
+- La zona horaria del restaurante debe ser `America/Chihuahua`.
+- Antes de la apertura, los usuarios pueden consultar el evento, pero
+  no reservar.
+- La hora oficial debe determinarse con una fuente confiable del
+  servidor, no con el reloj del dispositivo del usuario.
+- Considerar correctamente horario de verano y cambios de zona horaria
+  mediante identificadores IANA, no offsets fijos.
 
 ### Estados sugeridos
 
 Los eventos pueden tener estados como:
 
--   `draft`: borrador, no visible para clientes.
--   `published`: publicado, todavía no abierto.
--   `open`: reservaciones abiertas.
--   `closed`: reservaciones cerradas.
--   `cancelled`: evento cancelado.
+- `draft`: borrador, no visible para clientes.
+- `published`: publicado, todavía no abierto.
+- `open`: reservaciones abiertas.
+- `closed`: reservaciones cerradas.
+- `cancelled`: evento cancelado.
 
 Las mesas pueden tener estados derivados de su disponibilidad o estados
 administrativos explícitos. Evitar guardar datos redundantes que puedan
@@ -141,22 +158,22 @@ se calculan.
 La integridad de las reservaciones es el requisito técnico más
 importante.
 
--   Nunca permitir que una mesa supere su capacidad.
--   Una reservación solo está confirmada cuando la operación del
-    servidor termina correctamente.
--   Varias personas pueden intentar reservar el último lugar al mismo
-    tiempo.
--   La asignación debe ser atómica y transaccional.
--   La disponibilidad que muestra el frontend es informativa; la
-    validación final ocurre en el servidor.
--   Registrar timestamps con tiempo de servidor.
--   Evitar duplicados y definir qué significa que una persona pueda
-    reservar más de un lugar.
--   Manejar errores de concurrencia sin mostrar confirmaciones falsas.
--   Si una reservación se cancela, definir cómo se libera el lugar y se
-    actualiza la disponibilidad.
--   Considerar idempotencia para evitar que reintentos de red creen
-    reservaciones duplicadas.
+- Nunca permitir que una mesa supere su capacidad.
+- Una reservación solo está confirmada cuando la operación del
+  servidor termina correctamente.
+- Varias personas pueden intentar reservar el último lugar al mismo
+  tiempo.
+- La asignación debe ser atómica y transaccional.
+- La disponibilidad que muestra el frontend es informativa; la
+  validación final ocurre en el servidor.
+- Registrar timestamps con tiempo de servidor.
+- Evitar duplicados y definir qué significa que una persona pueda
+  reservar más de un lugar.
+- Manejar errores de concurrencia sin mostrar confirmaciones falsas.
+- Si una reservación se cancela, definir cómo se libera el lugar y se
+  actualiza la disponibilidad.
+- Considerar idempotencia para evitar que reintentos de red creen
+  reservaciones duplicadas.
 
 No implementar la asignación definitiva mediante un simple contador
 actualizado directamente desde el navegador.
@@ -177,17 +194,17 @@ Google en el futuro.
 
 Recomendación de diseño:
 
--   No usar el nickname como identificador único.
--   Utilizar un identificador estable de usuario.
--   Guardar el nickname como atributo modificable.
--   Asociar las reservaciones al identificador estable.
--   Evaluar Firebase Authentication anónima para los clientes desde el
-    inicio.
--   Permitir posteriormente vincular una cuenta anónima con Google
-    Authentication, preservando la identidad y las reservaciones cuando
-    el proceso de vinculación sea válido.
--   Administradores y personal deben utilizar autenticación y
-    autorización apropiadas.
+- No usar el nickname como identificador único.
+- Utilizar un identificador estable de usuario.
+- Guardar el nickname como atributo modificable.
+- Asociar las reservaciones al identificador estable.
+- Evaluar Firebase Authentication anónima para los clientes desde el
+  inicio.
+- Permitir posteriormente vincular una cuenta anónima con Google
+  Authentication, preservando la identidad y las reservaciones cuando
+  el proceso de vinculación sea válido.
+- Administradores y personal deben utilizar autenticación y
+  autorización apropiadas.
 
 Si se decide no usar autenticación anónima en la primera versión,
 documentar cómo se protegerá la consulta y modificación de las
@@ -207,12 +224,12 @@ solicite expresamente.
 
 A futuro podría añadirse una interfaz administrativa para:
 
--   Crear y editar eventos.
--   Configurar apertura y cierre de reservaciones.
--   Crear mesas con capacidades variables.
--   Consultar reservaciones.
--   Cancelar o corregir reservaciones con permisos.
--   Administrar usuarios, empleados y roles.
+- Crear y editar eventos.
+- Configurar apertura y cierre de reservaciones.
+- Crear mesas con capacidades variables.
+- Consultar reservaciones.
+- Cancelar o corregir reservaciones con permisos.
+- Administrar usuarios, empleados y roles.
 
 Las operaciones administrativas deben estar protegidas en el backend y
 mediante reglas de seguridad. Ocultar botones en la interfaz no
@@ -232,15 +249,15 @@ identidad visual coherente.
 
 Revisar y reutilizar cuando sea apropiado:
 
--   Logotipo.
--   Paleta de colores.
--   Tipografías.
--   Imágenes de productos.
--   Sprites y recursos pixel art.
--   Iconografía.
--   Fondos y texturas.
--   Componentes y patrones visuales.
--   Animaciones y transiciones.
+- Logotipo.
+- Paleta de colores.
+- Tipografías.
+- Imágenes de productos.
+- Sprites y recursos pixel art.
+- Iconografía.
+- Fondos y texturas.
+- Componentes y patrones visuales.
+- Animaciones y transiciones.
 
 La aplicación debe sentirse como una extensión natural del sitio
 público, no como un producto de otra marca.
@@ -256,13 +273,13 @@ de error claros.
 
 El proyecto utiliza actualmente un stack basado en:
 
--   React 19.
--   TypeScript.
--   Vite.
--   TanStack Start.
--   TanStack Router.
--   Tailwind CSS 4.
--   `@tailwindcss/vite`.
+- React 19.
+- TypeScript.
+- Vite.
+- TanStack Start.
+- TanStack Router.
+- Tailwind CSS 4.
+- `@tailwindcss/vite`.
 
 También incluye herramientas de interfaz como Radix UI, Lucide React,
 React Hook Form, Zod, Sonner y otras dependencias.
@@ -270,11 +287,11 @@ React Hook Form, Zod, Sonner y otras dependencias.
 El `package.json` existente incluye, entre otras, estas herramientas de
 desarrollo:
 
--   ESLint.
--   Prettier.
--   Vitest.
--   Testing Library.
--   TypeScript.
+- ESLint.
+- Prettier.
+- Vitest.
+- Testing Library.
+- TypeScript.
 
 ### Criterio recomendado
 
@@ -296,12 +313,12 @@ lógica crítica en el cliente.
 
 ### Dependencias
 
--   Revisar las dependencias existentes antes de agregar otras.
--   Evitar paquetes duplicados o innecesarios.
--   Mantener versiones compatibles.
--   No actualizar masivamente dependencias sin comprobar compatibilidad.
--   Añadir Firebase cuando se inicie la integración real, no durante una
-    etapa que solo requiere datos ficticios.
+- Revisar las dependencias existentes antes de agregar otras.
+- Evitar paquetes duplicados o innecesarios.
+- Mantener versiones compatibles.
+- No actualizar masivamente dependencias sin comprobar compatibilidad.
+- Añadir Firebase cuando se inicie la integración real, no durante una
+  etapa que solo requiere datos ficticios.
 
 ## 9. Firebase y backend previsto
 
@@ -310,11 +327,11 @@ de uso, sincronización en tiempo real y adecuación al volumen esperado.
 
 Servicios considerados:
 
--   **Firebase Authentication:** autenticación anónima o de invitados,
-    administradores y futura vinculación con Google.
--   **Cloud Firestore:** eventos, mesas, usuarios y reservaciones.
--   **Cloud Functions:** operaciones privilegiadas o críticas que deban
-    ejecutarse en servidor, cuando sea necesario.
+- **Firebase Authentication:** autenticación anónima o de invitados,
+  administradores y futura vinculación con Google.
+- **Cloud Firestore:** eventos, mesas, usuarios y reservaciones.
+- **Cloud Functions:** operaciones privilegiadas o críticas que deban
+  ejecutarse en servidor, cuando sea necesario.
 
 No asumir que todos los servicios son gratuitos. Cloud Functions y otros
 servicios pueden requerir habilitar el plan Blaze y asociar facturación.
@@ -332,9 +349,9 @@ del servidor.
 
 La intención es utilizar:
 
--   **Cloudflare:** DNS, dominio y hosting del frontend cuando la
-    arquitectura elegida sea compatible.
--   **Firebase:** autenticación, base de datos y servicios backend.
+- **Cloudflare:** DNS, dominio y hosting del frontend cuando la
+  arquitectura elegida sea compatible.
+- **Firebase:** autenticación, base de datos y servicios backend.
 
 Dominio inicial de la aplicación: `app.eldescansodelheroe.com`.
 
@@ -355,16 +372,16 @@ lógica de negocio.
 
 La plataforma puede incorporar en el futuro estos módulos:
 
--   Reservaciones y eventos.
--   Clientes y perfiles.
--   Historial de visitas.
--   Ventas y consumos.
--   Catálogo de productos.
--   Inventario.
--   Empleados.
--   Roles y permisos.
--   Reportes y estadísticas.
--   Otras operaciones del restaurante.
+- Reservaciones y eventos.
+- Clientes y perfiles.
+- Historial de visitas.
+- Ventas y consumos.
+- Catálogo de productos.
+- Inventario.
+- Empleados.
+- Roles y permisos.
+- Reportes y estadísticas.
+- Otras operaciones del restaurante.
 
 No construirlos ahora.
 
@@ -389,40 +406,40 @@ final.
 
 Configurar y utilizar:
 
--   Prettier para formato automático.
--   ESLint para análisis estático.
--   TypeScript en modo estricto.
--   Scripts claros para desarrollo, build, lint, format y tests.
+- Prettier para formato automático.
+- ESLint para análisis estático.
+- TypeScript en modo estricto.
+- Scripts claros para desarrollo, build, lint, format y tests.
 
 Asegurar que el formato sea consistente en todo el repositorio. No dejar
 archivos nuevos sin formatear.
 
 ### Código mantenible
 
--   Nombres descriptivos y consistentes.
--   Componentes con responsabilidades claras.
--   Funciones pequeñas y enfocadas.
--   Separación entre interfaz, lógica de negocio y acceso a datos.
--   Tipos compartidos cuando corresponda.
--   Validación de entradas.
--   Manejo explícito de errores y estados de carga.
--   Evitar duplicación, código muerto y valores mágicos.
--   Evitar archivos excesivamente grandes.
--   No añadir comentarios que simplemente repitan el código.
+- Nombres descriptivos y consistentes.
+- Componentes con responsabilidades claras.
+- Funciones pequeñas y enfocadas.
+- Separación entre interfaz, lógica de negocio y acceso a datos.
+- Tipos compartidos cuando corresponda.
+- Validación de entradas.
+- Manejo explícito de errores y estados de carga.
+- Evitar duplicación, código muerto y valores mágicos.
+- Evitar archivos excesivamente grandes.
+- No añadir comentarios que simplemente repitan el código.
 
 ### Documentación
 
 Mantener documentación útil y actualizada:
 
--   `README.md`: propósito, requisitos, instalación, scripts y
-    ejecución.
--   Documento de arquitectura: estructura y responsabilidades.
--   Configuración de entorno: variables requeridas y ejemplos sin
-    secretos.
--   Modelos de datos y reglas de negocio.
--   Configuración y reglas de Firebase.
--   Procedimiento de pruebas y despliegue.
--   Decisiones arquitectónicas relevantes.
+- `README.md`: propósito, requisitos, instalación, scripts y
+  ejecución.
+- Documento de arquitectura: estructura y responsabilidades.
+- Configuración de entorno: variables requeridas y ejemplos sin
+  secretos.
+- Modelos de datos y reglas de negocio.
+- Configuración y reglas de Firebase.
+- Procedimiento de pruebas y despliegue.
+- Decisiones arquitectónicas relevantes.
 
 La documentación debe permitir que otro desarrollador comprenda, ejecute
 y mantenga el proyecto sin depender de explicaciones informales.
@@ -433,15 +450,15 @@ Incluir pruebas apropiadas para la complejidad real del proyecto.
 
 Priorizar:
 
--   Asignación de lugares.
--   Intentos simultáneos de reservar el último lugar.
--   Mesa llena.
--   Evento todavía cerrado.
--   Evento cancelado.
--   Reservaciones duplicadas.
--   Cancelación y liberación de lugares.
--   Permisos de clientes y administradores.
--   Validaciones de datos.
+- Asignación de lugares.
+- Intentos simultáneos de reservar el último lugar.
+- Mesa llena.
+- Evento todavía cerrado.
+- Evento cancelado.
+- Reservaciones duplicadas.
+- Cancelación y liberación de lugares.
+- Permisos de clientes y administradores.
+- Validaciones de datos.
 
 No considerar un flujo terminado solo porque la interfaz parece
 funcionar. Las operaciones críticas deben probarse en su capa real,
@@ -451,14 +468,14 @@ incluyendo reglas y lógica del servidor cuando corresponda.
 
 Aplicar seguridad desde el diseño:
 
--   Validar datos en el servidor.
--   Aplicar mínimo privilegio.
--   Proteger credenciales y secretos.
--   Restringir operaciones administrativas.
--   No confiar en datos del cliente.
--   Evitar exponer información personal o reservaciones ajenas.
--   Registrar operaciones administrativas relevantes.
--   Preparar copias de seguridad y recuperación.
+- Validar datos en el servidor.
+- Aplicar mínimo privilegio.
+- Proteger credenciales y secretos.
+- Restringir operaciones administrativas.
+- No confiar en datos del cliente.
+- Evitar exponer información personal o reservaciones ajenas.
+- Registrar operaciones administrativas relevantes.
+- Preparar copias de seguridad y recuperación.
 
 Como el restaurante opera en México, considerar la legislación mexicana
 aplicable a protección de datos personales, incluyendo la necesidad de
@@ -501,31 +518,14 @@ arquitectura, explicarla antes de implementarla.
 
 ## 16. Prioridad actual
 
-La prioridad inmediata es convertir el proyecto existente en
-una base técnica estable y lista para versionarse en su propio
-repositorio.
+Completar el MVP de reservaciones con el diseño existente y Firebase. Priorizar
+la integridad transaccional del servidor, el mínimo privilegio en Firestore,
+los estados claros para el usuario y el funcionamiento local con Emulator
+Suite. Consultar el README y `FIREBASE_ARCHITECTURE.md` para el estado concreto
+de la implementación y los comandos actuales. No desplegar ni modificar el
+proyecto Firebase real durante el desarrollo local.
 
-En esta primera etapa:
-
--   Conservar el diseño y los flujos visuales existentes.
--   Utilizar datos ficticios o hardcodeados, separados de los
-    componentes.
--   Mantener la aplicación independiente del sitio público.
--   Revisar y ordenar la estructura.
--   Configurar correctamente TypeScript, ESLint y Prettier.
--   Verificar scripts y dependencias.
--   Asegurar que el build de producción funcione.
--   Documentar instalación, estructura y configuración.
--   Dejar preparada la arquitectura para integrar Firebase
-    posteriormente.
-
-No conectar Firebase todavía si el alcance de la tarea es únicamente
-preparar la base.
-
-El resultado debe ser una aplicación independiente, legible, formateada,
-documentada y lista para crear su repositorio GitHub.
-
-------------------------------------------------------------------------
+---
 
 ## Principio rector
 
