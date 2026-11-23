@@ -4,11 +4,11 @@ La aplicación mantiene el código de reservas dentro de `src/features/reservati
 
 ## Datos actuales
 
-- `events/{eventId}`: `name`, `tagline`, `description`, `startsAt`, `opensAt`, `timezone`, `status` y `band`.
+- `events/{eventId}`: `name`, `description`, `startsAt`, `opensAt`, `timezone`, `status` y `band`.
 - `events/{eventId}/tables/{tableId}`: `name`, `capacity`, `reservedCount`, `status` y los datos descriptivos opcionales de la mesa.
 - `events/{eventId}/reservations/{uid}`: como máximo una reserva activa por usuario y evento. El ID del documento es el UID de Firebase Auth; el nickname es texto de presentación.
 
-El cliente consulta eventos con `status == "published"`, escucha el evento y sus mesas con Firestore, y observa únicamente su propio documento de reserva. Las mesas y eventos se administran manualmente en Firebase Console; no existe panel administrativo.
+El cliente consulta eventos con `status == "published"`, escucha el evento y sus mesas con Firestore, y observa únicamente su propio documento de reserva. El panel privado administra eventos, mesas, reservaciones y plantillas; las lecturas requieren el Custom Claim `admin: true` y las escrituras pasan por Cloud Functions.
 
 ## Reservas y concurrencia
 
@@ -26,15 +26,16 @@ Las reglas productivas están en `firestore.rules` y se prueban con Firestore Em
 
 - clientes leen solo eventos publicados y sus mesas;
 - usuarios autenticados leen su propio documento de reserva;
+- administradores con `admin: true` pueden leer los datos administrativos;
 - el cliente no escribe eventos, mesas ni reservas;
 - cualquier ruta restante queda denegada.
 
-Las callables con Admin SDK son la única vía de reserva y cancelación. La configuración de pruebas de Functions usa `firebase.emulator.json` y `firestore.emulator.rules`, que bloquea todo acceso de cliente y queda separada de las reglas productivas.
+Las callables con Admin SDK son la única vía de escritura para reservaciones y administración. Cada operación administrativa verifica el claim en el backend. La configuración de pruebas de Functions usa `firebase.emulator.json` y `firestore.emulator.rules`, que bloquea todo acceso de cliente y queda separada de las reglas productivas.
 
 ## Entorno local y regiones
 
 El frontend conecta a Authentication (`9099`), Firestore (`8080`) y Functions (`5001`) cuando corre en modo desarrollo, y exige el ID `demo-el-descanso`. `npm run emulators` compila Functions e inicia esos tres emuladores con la configuración de `firebase.json`; la raíz de la aplicación no requiere `.env.local` para el modo demo.
 
-Firestore se mantiene en `northamerica-south1`; Cloud Functions 2nd gen usa `us-south1`. No se cambia ninguna región ni se despliega desde el flujo local.
+La aplicación espera Firestore en `northamerica-south1`; Cloud Functions 2nd gen usa `us-south1`. Confirma la región real de la base antes de crear Firestore en producción, porque no se puede cambiar después. No se cambia ninguna región ni se despliega desde el flujo local.
 
 Consulta el README para instalación, datos de prueba y comandos de ejecución.

@@ -2,11 +2,10 @@ import type { Timestamp } from "firebase/firestore";
 
 export interface EventDocument {
   name: string;
-  tagline: string;
   description: string;
   startsAt: Timestamp;
   opensAt: Timestamp;
-  timezone: "America/Chihuahua";
+  timezone: string;
   status: "draft" | "published" | "closed" | "cancelled";
   band: string;
   createdAt: Timestamp;

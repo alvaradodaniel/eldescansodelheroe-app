@@ -18,7 +18,6 @@ function request(data: Partial<CancelReservationData>, uid?: string) {
 async function seedEvent(options?: { startsAt?: Timestamp }) {
   await adminDb.doc(`events/${eventId}`).set({
     name: "Evento de cancelación",
-    tagline: "Prueba",
     description: "Evento del emulador",
     startsAt: options?.startsAt ?? Timestamp.fromMillis(Date.now() + 3_600_000),
     opensAt: Timestamp.fromMillis(Date.now() - 1_000),

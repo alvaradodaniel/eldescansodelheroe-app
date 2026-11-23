@@ -13,21 +13,21 @@ type FirebaseConfig = {
 };
 
 const firebaseEnvironment = {
-  VITE_FIREBASE_API_KEY: import.meta.env.VITE_FIREBASE_API_KEY,
-  VITE_FIREBASE_AUTH_DOMAIN: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
-  VITE_FIREBASE_PROJECT_ID: import.meta.env.VITE_FIREBASE_PROJECT_ID,
-  VITE_FIREBASE_STORAGE_BUCKET: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
-  VITE_FIREBASE_MESSAGING_SENDER_ID: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
-  VITE_FIREBASE_APP_ID: import.meta.env.VITE_FIREBASE_APP_ID,
+  VITE_FIREBASE_API_KEY: import.meta.env["VITE_FIREBASE_API_KEY"],
+  VITE_FIREBASE_AUTH_DOMAIN: import.meta.env["VITE_FIREBASE_AUTH_DOMAIN"],
+  VITE_FIREBASE_PROJECT_ID: import.meta.env["VITE_FIREBASE_PROJECT_ID"],
+  VITE_FIREBASE_STORAGE_BUCKET: import.meta.env["VITE_FIREBASE_STORAGE_BUCKET"],
+  VITE_FIREBASE_MESSAGING_SENDER_ID: import.meta.env["VITE_FIREBASE_MESSAGING_SENDER_ID"],
+  VITE_FIREBASE_APP_ID: import.meta.env["VITE_FIREBASE_APP_ID"],
 };
 
 function getRequiredEnv(name: keyof typeof firebaseEnvironment): string {
   const value = firebaseEnvironment[name];
 
-  if (!value) {
+  if (!value || value.startsWith("your-")) {
     throw new Error(
-      `Missing required Firebase environment variable: ${name}. ` +
-        "Copy .env.example to .env.local and provide the Firebase Web App configuration.",
+      `Missing or placeholder Firebase environment variable: ${name}. ` +
+        "Provide the Firebase Web App configuration for the target environment.",
     );
   }
 
@@ -39,6 +39,14 @@ const useEmulators = import.meta.env.DEV && !isTest;
 const projectId = isTest
   ? "demo-el-descanso"
   : firebaseEnvironment.VITE_FIREBASE_PROJECT_ID || (useEmulators ? "demo-el-descanso" : "");
+if (
+  import.meta.env.MODE === "production" &&
+  (projectId === "demo-el-descanso" || projectId === "your-project-id")
+) {
+  throw new Error(
+    "Production builds must use a real Firebase project. Configure the VITE_FIREBASE_* build variables before building.",
+  );
+}
 if (useEmulators && projectId !== "demo-el-descanso") {
   throw new Error("Development is restricted to the demo-el-descanso Firebase project.");
 }
@@ -51,8 +59,7 @@ const firebaseConfig: FirebaseConfig =
         projectId,
         storageBucket:
           firebaseEnvironment.VITE_FIREBASE_STORAGE_BUCKET || "demo-el-descanso.appspot.com",
-        messagingSenderId:
-          firebaseEnvironment.VITE_FIREBASE_MESSAGING_SENDER_ID || "000000000000",
+        messagingSenderId: firebaseEnvironment.VITE_FIREBASE_MESSAGING_SENDER_ID || "000000000000",
         appId: firebaseEnvironment.VITE_FIREBASE_APP_ID || "1:000000000000:web:demo",
       }
     : {

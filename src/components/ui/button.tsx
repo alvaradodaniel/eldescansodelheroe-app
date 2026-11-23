@@ -25,6 +25,12 @@ const buttonVariants = cva(
           "rounded-none bg-wood-dark font-pixel text-base font-normal text-gold shadow-pixel-sm transition-transform hover:-translate-y-0.5 active:translate-y-0.5 active:shadow-none",
         "pixel-gold":
           "rounded-none bg-gold font-pixel text-base font-normal text-wood-dark shadow-pixel-sm transition-transform hover:-translate-y-0.5 active:translate-y-0.5 active:shadow-none",
+        "pixel-positive":
+          "rounded-none bg-seat-open font-pixel text-base font-normal text-seat-open-foreground shadow-pixel-sm transition-transform hover:-translate-y-0.5 hover:brightness-110 active:translate-y-0.5 active:shadow-none",
+        "pixel-danger":
+          "rounded-none bg-destructive font-pixel text-base font-normal text-destructive-foreground shadow-pixel-sm transition-transform hover:-translate-y-0.5 hover:brightness-110 active:translate-y-0.5 active:shadow-none",
+        "pixel-neutral":
+          "rounded-none bg-secondary font-pixel text-base font-normal text-secondary-foreground shadow-pixel-sm transition-transform hover:-translate-y-0.5 hover:brightness-110 active:translate-y-0.5 active:shadow-none",
       },
       size: {
         default: "h-9 px-4 py-2",

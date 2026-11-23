@@ -1,4 +1,5 @@
 import { Link } from "@tanstack/react-router";
+import { ArrowRight, CalendarDays, Clock3 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import type { EventStatus, ReservationEvent } from "../types";
@@ -18,42 +19,60 @@ export function EventCard({ event }: { event: ReservationEvent }) {
       to="/eventos/$eventoId"
       params={{ eventoId: event.id }}
       className={cn(
-        "group flex h-full flex-col bg-card pixel-frame transition-transform duration-200 hover:-translate-y-1.5",
+        "group flex h-full min-h-72 flex-col bg-card pixel-frame transition-transform duration-200 hover:-translate-y-1.5 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-gold",
         event.band,
         event.status === "closed" && "opacity-85",
       )}
     >
-      <header className="bg-band px-4 py-3 text-band-foreground">
+      <header className="flex min-h-14 items-center bg-band px-4 py-3 text-band-foreground">
         <h3 className="font-display text-xl font-bold leading-tight">{event.name}</h3>
-        <p className="font-pixel text-sm opacity-90">{event.tagline}</p>
       </header>
-      <div className="flex flex-1 flex-col gap-3 border-t-4 border-wood-dark px-4 py-4">
+      <div className="flex flex-1 flex-col gap-4 border-t-4 border-wood-dark px-4 py-4">
         <span
           className={cn(
-            "self-start px-2 py-0.5 font-pixel text-xs uppercase tracking-wide shadow-pixel-sm",
+            "self-start border-2 border-wood-dark/20 px-2.5 py-1 font-pixel text-xs uppercase tracking-wide shadow-pixel-sm",
             status.className,
           )}
         >
           {status.label}
         </span>
-        <dl className="space-y-1.5 text-sm">
-          <div className="flex justify-between gap-3">
-            <dt className="text-muted-foreground">Evento</dt>
-            <dd className="text-right font-bold">
-              {event.dateLabel} · {event.timeLabel}
-            </dd>
+        <dl className="grid gap-3 text-sm">
+          <div className="flex items-start gap-3">
+            <span className="mt-0.5 flex size-9 shrink-0 items-center justify-center border-2 border-wood-dark/20 bg-parchment text-primary">
+              <CalendarDays className="size-4" aria-hidden="true" />
+            </span>
+            <div className="min-w-0">
+              <dt className="font-pixel text-[0.65rem] uppercase tracking-wider text-muted-foreground">
+                Evento
+              </dt>
+              <dd className="mt-0.5 font-bold leading-snug">
+                {event.dateLabel}
+                <span className="text-muted-foreground"> · </span>
+                {event.timeLabel}
+              </dd>
+            </div>
           </div>
-          <div className="flex justify-between gap-3">
-            <dt className="text-muted-foreground">Apertura</dt>
-            <dd className="text-right font-bold">{event.opensAtLabel}</dd>
+          <div className="flex items-start gap-3">
+            <span className="mt-0.5 flex size-9 shrink-0 items-center justify-center border-2 border-wood-dark/20 bg-parchment text-primary">
+              <Clock3 className="size-4" aria-hidden="true" />
+            </span>
+            <div className="min-w-0">
+              <dt className="font-pixel text-[0.65rem] uppercase tracking-wider text-muted-foreground">
+                Apertura de reservaciones
+              </dt>
+              <dd className="mt-0.5 font-bold leading-snug">{event.opensAtLabel}</dd>
+            </div>
           </div>
         </dl>
-        <p className="mt-auto font-pixel text-sm text-muted-foreground">
-          Consulta las mesas y su disponibilidad
-        </p>
-        <span className="mt-1 self-start bg-primary px-4 py-1.5 font-pixel text-primary-foreground shadow-pixel-sm">
-          Ver mesas ▸
-        </span>
+        <div className="mt-auto flex items-center justify-between gap-3 border-t-2 border-dashed border-wood-dark/25 pt-3">
+          <p className="font-pixel text-xs leading-relaxed text-muted-foreground">
+            Consulta mesas y lugares disponibles
+          </p>
+          <span className="inline-flex shrink-0 items-center gap-2 bg-primary px-3 py-2 font-pixel text-sm text-primary-foreground shadow-pixel-sm transition-transform group-hover:translate-x-0.5">
+            Ver mesas
+            <ArrowRight className="size-4" aria-hidden="true" />
+          </span>
+        </div>
       </div>
     </Link>
   );

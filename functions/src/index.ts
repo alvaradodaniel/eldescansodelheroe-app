@@ -21,3 +21,28 @@ export const cancelReservation = onCall(async (request) => {
   const { cancelReservationHandler } = await import("./cancel-reservation.js");
   return cancelReservationHandler(request);
 });
+
+export const adminSaveEvent = onCall(async (request) => {
+  const { adminSaveEventHandler } = await import("./admin.js");
+  return adminSaveEventHandler(request);
+});
+
+export const adminGetWeeklyTemplates = onCall(async (request) => {
+  const { adminGetWeeklyTemplatesHandler } = await import("./admin.js");
+  return adminGetWeeklyTemplatesHandler(request);
+});
+
+export const adminSaveWeeklyTemplates = onCall(async (request) => {
+  const { adminSaveWeeklyTemplatesHandler } = await import("./admin.js");
+  return adminSaveWeeklyTemplatesHandler(request);
+});
+
+export const adminSaveTable = onCall(async (request) => {
+  const { adminSaveTableHandler } = await import("./admin.js");
+  return adminSaveTableHandler(request);
+});
+
+export const adminCancelReservation = onCall(async (request) => {
+  const { adminCancelReservationHandler } = await import("./admin.js");
+  return adminCancelReservationHandler(request);
+});

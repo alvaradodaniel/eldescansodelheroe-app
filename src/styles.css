@@ -412,12 +412,87 @@
   opacity: 0.8;
 }
 
-/* Pixel "input" field: cream inset with a wood edge */
-@utility pixel-input {
-  background-color: var(--cream);
+/* Shared native form controls: parchment fill with a pixel wood edge. */
+@layer components {
+  .form-control {
+    display: block;
+    min-height: 2.5rem;
+    border: 3px solid var(--wood-dark);
+    background-color: var(--cream);
+    padding: 0.5rem 0.75rem;
+    color: var(--ink);
+    font-family: var(--font-sans);
+    font-size: 1rem;
+    line-height: 1.5;
+    box-shadow: inset 0 3px 0 0 color-mix(in oklab, var(--wood-dark) 18%, transparent);
+    transition:
+      border-color 150ms ease,
+      box-shadow 150ms ease,
+      background-color 150ms ease;
+  }
+
+  .form-control::placeholder {
+    color: var(--muted-foreground);
+    opacity: 1;
+  }
+
+  .form-control:hover:not(:disabled) {
+    border-color: var(--gold-deep);
+  }
+
+  .form-control:focus-visible {
+    border-color: var(--gold-deep);
+    outline: 2px solid var(--gold-deep);
+    outline-offset: 2px;
+  }
+
+  .form-control:disabled {
+    cursor: not-allowed;
+    opacity: 0.55;
+  }
+
+  select.form-control {
+    padding-right: 2rem;
+  }
+
+  textarea.form-control {
+    min-height: 6rem;
+    resize: vertical;
+  }
+}
+
+[data-sonner-toaster] [data-sonner-toast][data-styled="true"] {
   border: 3px solid var(--wood-dark);
-  box-shadow: inset 0 3px 0 0 color-mix(in oklab, var(--wood-dark) 18%, transparent);
-  color: var(--ink);
+  border-radius: 0;
+  box-shadow: var(--shadow-pixel-sm);
+  font-family: var(--font-pixel);
+}
+
+.adventure-steps::before {
+  position: absolute;
+  top: 3rem;
+  bottom: 3rem;
+  left: 1.5rem;
+  width: 3px;
+  background: repeating-linear-gradient(to bottom, var(--gold-deep) 0 6px, transparent 6px 10px);
+  content: "";
+  opacity: 0.65;
+}
+
+details[open] > summary .accordion-chevron {
+  transform: rotate(180deg);
+}
+
+@media (min-width: 640px) {
+  .adventure-steps::before {
+    top: 1.5rem;
+    right: 16.6667%;
+    bottom: auto;
+    left: 16.6667%;
+    width: auto;
+    height: 3px;
+    background: repeating-linear-gradient(to right, var(--gold-deep) 0 6px, transparent 6px 10px);
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

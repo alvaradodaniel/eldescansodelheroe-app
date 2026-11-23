@@ -33,12 +33,20 @@ export const Route = createFileRoute("/")({
 });
 
 const STEPS = [
-  { icon: CalendarDays, title: "Elige el evento", text: "Consulta fechas y la hora de apertura." },
-  { icon: Armchair, title: "Escoge tu mesa", text: "Mira cuántos lugares quedan en cada una." },
+  {
+    icon: CalendarDays,
+    title: "ELIGE TU EVENTO",
+    text: "Consulta los próximos eventos y sus horarios de apertura.",
+  },
+  {
+    icon: Armchair,
+    title: "ESCOGE TU MESA",
+    text: "Revisa los Masters y los lugares disponibles en cada mesa.",
+  },
   {
     icon: BadgeCheck,
-    title: "Asegura tu lugar",
-    text: "Escribe tu alias una vez y recibe tu confirmación.",
+    title: "CONFIRMA TU LUGAR",
+    text: "Escribe tu alias y asegura tu espacio para la aventura.",
   },
 ];
 
@@ -161,21 +169,21 @@ function HomePage() {
         <section className="mx-auto max-w-6xl px-5 pt-20 sm:px-6">
           <div className="parchment-panel pixel-frame-gold px-6 py-8 sm:px-10">
             <h2 className="text-center text-2xl font-bold sm:text-3xl">¿Cómo funciona?</h2>
-            <ol className="mt-8 grid gap-5 sm:grid-cols-3">
+            <ol className="adventure-steps relative mt-10 grid gap-7 sm:grid-cols-3 sm:gap-4">
               {STEPS.map((step, i) => (
                 <li
                   key={step.title}
-                  className="flex items-start gap-4 border-2 border-wood-dark/20 bg-card/70 p-4 sm:flex-col sm:gap-3 sm:p-5"
+                  className="relative z-10 grid grid-cols-[3rem_1fr] items-center gap-4 sm:flex sm:flex-col sm:items-center sm:gap-4 sm:px-3 sm:text-center"
                 >
-                  <span className="flex size-14 shrink-0 items-center justify-center bg-secondary text-secondary-foreground shadow-pixel-sm">
-                    <step.icon className="size-7" strokeWidth={2.5} aria-hidden />
+                  <span className="flex size-12 items-center justify-center border-2 border-wood-dark bg-parchment text-primary shadow-pixel-sm">
+                    <step.icon className="size-6" strokeWidth={2.5} aria-hidden />
                   </span>
-                  <div>
-                    <p className="font-pixel text-xs uppercase tracking-widest text-primary">
-                      Paso {i + 1}
-                    </p>
-                    <h3 className="mt-1 font-display text-lg font-bold">{step.title}</h3>
-                    <p className="text-foreground/80">{step.text}</p>
+                  <div className="sm:mt-1">
+                    <p className="font-pixel text-2xl leading-none text-gold-deep">0{i + 1}</p>
+                    <h3 className="mt-2 font-display text-lg font-bold tracking-wide">
+                      {step.title}
+                    </h3>
+                    <p className="mt-1 max-w-xs text-foreground/80 sm:mx-auto">{step.text}</p>
                   </div>
                 </li>
               ))}

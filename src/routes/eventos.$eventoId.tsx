@@ -1,9 +1,18 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { AlertCircle, LoaderCircle, PencilLine, UserRound } from "lucide-react";
+import {
+  AlertCircle,
+  ArrowLeft,
+  CalendarDays,
+  Clock3,
+  LoaderCircle,
+  PencilLine,
+  UserRound,
+} from "lucide-react";
 import { AppFooter } from "@/components/layout/AppFooter";
 import { AppHeader } from "@/components/layout/AppHeader";
 import { Button } from "@/components/ui/button";
+import { Toaster } from "@/components/ui/sonner";
 import { toast } from "sonner";
 import { Countdown } from "@/features/reservations/components/Countdown";
 import { TableCard } from "@/features/reservations/components/TableCard";
@@ -65,7 +74,6 @@ function EventPage({ eventoId }: { eventoId: string }) {
   const cancelObservedRef = useRef(false);
   const reservePendingRef = useRef(false);
   const cancelPendingRef = useRef(false);
-  const [message, setMessage] = useState("");
   const [reservation, setReservation] = useState<ActiveReservation | null>(null);
   const [reservationLoading, setReservationLoading] = useState(true);
   const [cancelAsk, setCancelAsk] = useState(false);
@@ -106,7 +114,9 @@ function EventPage({ eventoId }: { eventoId: string }) {
           if (cancelPendingRef.current) {
             cancelObservedRef.current = true;
             cancelPendingRef.current = false;
-            setMessage("Tu reserva fue cancelada y el lugar quedó disponible.");
+            toast.success("Tu reserva fue cancelada y el lugar quedó disponible.", {
+              duration: 5000,
+            });
           }
           return;
         }
@@ -115,13 +125,16 @@ function EventPage({ eventoId }: { eventoId: string }) {
         if (ownReservation?.status === "confirmed" && reservePendingRef.current) {
           reserveObservedRef.current = true;
           reservePendingRef.current = false;
-          setMessage("¡Tu lugar quedó confirmado! La reserva activa aparece en esta página.");
-          toast.success("¡Tu reserva quedó confirmada!");
+          toast.success("¡Tu lugar quedó confirmado! La reserva activa aparece en esta página.", {
+            duration: 5000,
+          });
         }
       },
       () => {
         setReservationLoading(false);
-        setMessage("No pudimos consultar tu reserva. Recarga para volver a intentarlo.");
+        toast.error("No pudimos consultar tu reserva. Recarga para volver a intentarlo.", {
+          duration: 6500,
+        });
       },
     );
   }, [eventId, auth.uid]);
@@ -130,23 +143,15 @@ function EventPage({ eventoId }: { eventoId: string }) {
     const cleanNickname = nickname.trim();
     if (cleanNickname.length < 2) {
       setNicknameEditing(true);
-      toast.error("Antes de reservar, escribe y guarda tu nombre o alias.");
+      toast.warning("Antes de reservar, escribe y guarda tu nombre o alias.", { duration: 5500 });
       return;
     }
-    if (
-      !event ||
-      reservation ||
-      reservationLoading ||
-      !auth.uid ||
-      busyRef.current
-    )
-      return;
+    if (!event || reservation || reservationLoading || !auth.uid || busyRef.current) return;
     busyRef.current = true;
     reservePendingRef.current = true;
     reserveObservedRef.current = false;
     setBusy(true);
     setSubmittingTableId(tableId);
-    setMessage("");
     try {
       await reserveSeat({
         eventId: event.id,
@@ -156,15 +161,16 @@ function EventPage({ eventoId }: { eventoId: string }) {
       reservePendingRef.current = false;
       saveNickname(cleanNickname);
       setNicknameEditing(false);
-      setMessage("¡Tu lugar quedó confirmado! La reserva activa aparece en esta página.");
       if (!reserveObservedRef.current) {
-        toast.success(`¡Reserva confirmada en ${tables.find((table) => table.id === tableId)?.name ?? "la mesa"}!`);
+        toast.success(
+          `¡Reserva confirmada en ${tables.find((table) => table.id === tableId)?.name ?? "la mesa"}!`,
+          { duration: 5000 },
+        );
       }
     } catch (error) {
       if (!reserveObservedRef.current) {
         const errorMessage = reservationErrorMessage(error);
-        setMessage(errorMessage);
-        toast.error(errorMessage);
+        toast.error(errorMessage, { duration: 6500 });
       }
       reservePendingRef.current = false;
     } finally {
@@ -180,18 +186,17 @@ function EventPage({ eventoId }: { eventoId: string }) {
     cancelPendingRef.current = true;
     cancelObservedRef.current = false;
     setBusy(true);
-    setMessage("");
     try {
       await cancelReservation({ eventId: event.id });
       cancelPendingRef.current = false;
-      setMessage("Tu reserva fue cancelada y el lugar quedó disponible.");
-      toast.success("Tu reserva fue cancelada.");
+      if (!cancelObservedRef.current) {
+        toast.success("Tu reserva fue cancelada y el lugar quedó disponible.", { duration: 5000 });
+      }
       setCancelAsk(false);
     } catch (error) {
       if (!cancelObservedRef.current) {
         const errorMessage = reservationErrorMessage(error);
-        setMessage(errorMessage);
-        toast.error(errorMessage);
+        toast.error(errorMessage, { duration: 6500 });
       }
       cancelPendingRef.current = false;
     } finally {
@@ -205,6 +210,19 @@ function EventPage({ eventoId }: { eventoId: string }) {
 
   return (
     <>
+      <Toaster position="bottom-center" toastOptions={{ duration: 4500 }} />
+      {event?.status === "open" && (
+        <div className="pointer-events-none fixed right-3 top-[4.5rem] z-30 sm:right-6">
+          <p
+            role="status"
+            aria-label="Disponibilidad en vivo"
+            className="inline-flex items-center gap-2 border-2 border-wood-dark bg-wood-dark/95 px-3 py-1.5 font-pixel text-xs text-cream shadow-lg sm:text-sm"
+          >
+            <span className="size-2.5 bg-seat-open animate-live" aria-hidden="true" />
+            Disponibilidad en vivo
+          </p>
+        </div>
+      )}
       <AppHeader />
       <main>
         {eventState.loading ? (
@@ -236,24 +254,40 @@ function EventPage({ eventoId }: { eventoId: string }) {
                 <Link
                   to="/"
                   hash="eventos"
-                  className="font-pixel text-sm text-cream/80 hover:text-gold"
+                  className="inline-flex items-center gap-2 border-2 border-cream/30 bg-wood-dark/65 px-3 py-1.5 font-pixel text-xs text-cream shadow-pixel-sm transition-colors hover:border-gold hover:text-gold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold"
                 >
-                  ◂ Todos los eventos
+                  <ArrowLeft className="size-4" aria-hidden="true" />
+                  Todos los eventos
                 </Link>
-                <p className="mt-6 inline-block bg-band px-2 py-0.5 font-pixel text-sm uppercase tracking-widest text-band-foreground">
-                  {event.tagline}
-                </p>
-                <h1 className="mt-3 font-display text-4xl font-bold leading-tight text-cream text-shadow-pixel sm:text-5xl">
+                <h1 className="mt-5 max-w-3xl font-display text-4xl font-bold leading-[1.05] text-cream text-shadow-pixel sm:text-5xl md:text-6xl">
                   {event.name}
                 </h1>
-                <p className="mt-3 max-w-2xl text-cream/90">{event.description}</p>
-                <div className="mt-6 flex flex-wrap gap-2 font-pixel text-sm">
-                  <span className="bg-wood-dark/85 px-3 py-1.5 text-cream">
-                    ✦ {event.dateLabel} · {event.timeLabel}
-                  </span>
-                  <span className="bg-wood-dark/85 px-3 py-1.5 text-cream">
-                    ◷ Reservaciones: {event.opensAtLabel}
-                  </span>
+                {event.description && (
+                  <p className="mt-4 max-w-2xl text-base leading-relaxed text-cream drop-shadow sm:text-lg">
+                    {event.description}
+                  </p>
+                )}
+                <div className="mt-6 grid max-w-3xl gap-3 border-2 border-gold/50 bg-wood-dark/85 p-4 text-cream shadow-pixel-sm sm:grid-cols-2 sm:gap-0 sm:p-5">
+                  <div className="flex items-start gap-3 border-b border-cream/20 pb-3 sm:border-b-0 sm:border-r sm:pb-0 sm:pr-5">
+                    <CalendarDays className="mt-0.5 size-5 shrink-0 text-gold" aria-hidden="true" />
+                    <div>
+                      <p className="font-pixel text-xs uppercase tracking-wider text-gold">
+                        Fecha del evento
+                      </p>
+                      <p className="mt-1 font-semibold leading-snug">
+                        {event.dateLabel} <span className="text-cream/60">·</span> {event.timeLabel}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-start gap-3 pt-1 sm:pl-5 sm:pt-0">
+                    <Clock3 className="mt-0.5 size-5 shrink-0 text-gold" aria-hidden="true" />
+                    <div>
+                      <p className="font-pixel text-xs uppercase tracking-wider text-gold">
+                        Apertura de reservaciones
+                      </p>
+                      <p className="mt-1 font-semibold leading-snug">{event.opensAtLabel}</p>
+                    </div>
+                  </div>
                 </div>
               </div>
             </section>
@@ -265,60 +299,61 @@ function EventPage({ eventoId }: { eventoId: string }) {
             {reservation && (
               <section className="mx-auto mt-6 max-w-6xl px-5 sm:px-6">
                 <div className="border-2 border-seat-open bg-card p-5 pixel-frame">
-                <h2 className="text-xl font-bold">Tienes una reserva activa</h2>
-                <p className="mt-1">
-                  {event.name} · {activeTable?.name ?? "Mesa reservada"} · {reservation.nickname}
-                </p>
-                {cancelAsk ? (
-                  <div className="mt-4">
-                    <p>¿Confirmas que quieres cancelar tu reserva?</p>
-                    <div className="mt-3 flex gap-3">
-                      <Button variant="pixel" disabled={busy} onClick={submitCancellation}>
-                        {busy ? "Procesando…" : "Sí, cancelar"}
-                      </Button>
-                      <Button
-                        variant="pixel-dark"
-                        disabled={busy}
-                        onClick={() => setCancelAsk(false)}
-                      >
-                        Volver
-                      </Button>
+                  <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                      <h2 className="font-display text-xl font-bold text-seat-open">
+                        Tienes una reserva activa
+                      </h2>
+                      <p className="mt-1">
+                        {event.name} · {activeTable?.name ?? "Mesa reservada"} ·{" "}
+                        {reservation.nickname}
+                      </p>
                     </div>
+                    {cancelAsk ? (
+                      <div>
+                        <p>¿Confirmas que quieres cancelar tu reserva?</p>
+                        <div className="mt-3 flex gap-3">
+                          <Button
+                            variant="pixel-danger"
+                            disabled={busy}
+                            onClick={submitCancellation}
+                          >
+                            {busy ? "Procesando…" : "Sí, cancelar"}
+                          </Button>
+                          <Button
+                            variant="pixel-neutral"
+                            disabled={busy}
+                            onClick={() => setCancelAsk(false)}
+                          >
+                            Volver
+                          </Button>
+                        </div>
+                      </div>
+                    ) : (
+                      <Button
+                        variant="pixel-danger"
+                        disabled={busy}
+                        onClick={() => setCancelAsk(true)}
+                      >
+                        Cancelar reserva
+                      </Button>
+                    )}
                   </div>
-                ) : (
-                  <Button
-                    className="mt-4"
-                    variant="pixel-dark"
-                    disabled={busy}
-                    onClick={() => setCancelAsk(true)}
-                  >
-                    Cancelar reserva
-                  </Button>
-                )}
                 </div>
               </section>
             )}
-            {message && (
-              <p role="status" className="mx-auto mt-5 max-w-6xl px-5 sm:px-6">
-                <span className="block bg-card p-4 pixel-frame">{message}</span>
-              </p>
-            )}
             <section className="mx-auto mt-6 max-w-6xl px-5 sm:px-6">
               {event.status === "published" ? (
-                <div className="parchment-panel pixel-frame-gold px-4 py-5 text-center">
+                <div className="border-y-2 border-gold-deep/40 py-5 text-center">
                   <p className="font-pixel text-sm uppercase tracking-widest text-primary">
                     Las reservaciones abren en
                   </p>
                   <div className="mx-auto mt-4 max-w-md">
                     <Countdown targetAt={eventState.event!.opensAt.toDate()} />
                   </div>
-                  <p className="mt-2 text-muted-foreground">
-                    Puedes revisar las mesas. La apertura es {event.opensAtLabel}, hora de
-                    Chihuahua.
-                  </p>
                 </div>
               ) : event.status === "closed" || event.status === "cancelled" ? (
-                <div className="bg-card px-4 py-4 pixel-frame">
+                <div className="border-y border-wood-dark/20 py-4">
                   <p className="font-display text-xl font-bold">
                     {event.status === "cancelled" ? "Evento cancelado" : "Reservaciones cerradas"}
                   </p>
@@ -327,15 +362,11 @@ function EventPage({ eventoId }: { eventoId: string }) {
                   </p>
                 </div>
               ) : (
-                <div className="flex flex-col gap-3 bg-card px-4 py-4 pixel-frame sm:flex-row sm:items-center sm:justify-between">
+                <div className="border-y border-wood-dark/20 py-4">
                   <div>
                     <p className="font-display text-xl font-bold">¡Reservaciones abiertas!</p>
                     <p className="text-muted-foreground">Elige una mesa y confirma tu lugar.</p>
                   </div>
-                  <p className="inline-flex items-center gap-2 self-start bg-wood-dark px-3 py-1.5 font-pixel text-sm text-cream">
-                    <span className="size-2.5 bg-seat-open animate-live" aria-hidden />
-                    Disponibilidad en vivo
-                  </p>
                 </div>
               )}
             </section>
@@ -367,7 +398,7 @@ function EventPage({ eventoId }: { eventoId: string }) {
                   <div className="parchment-panel pixel-frame mt-5 flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
                     <div className="flex items-start gap-3">
                       <span className="flex size-10 shrink-0 items-center justify-center bg-secondary text-secondary-foreground">
-                        <UserRound className="size-5" aria-hidden />
+                        <UserRound className="size-5" aria-hidden="true" />
                       </span>
                       <div>
                         <p className="font-display text-lg font-bold">
@@ -378,52 +409,49 @@ function EventPage({ eventoId }: { eventoId: string }) {
                         </p>
                       </div>
                     </div>
-                    {nicknameEditing ? (
-                      <div className="flex w-full flex-col gap-2 sm:max-w-sm sm:flex-row">
-                        <input
-                          aria-label="Nombre o alias"
-                          className="h-11 min-w-0 flex-1 pixel-input px-3"
-                          value={nickname}
-                          maxLength={30}
-                          autoComplete="nickname"
-                          disabled={busy}
-                          onChange={(e) => setNickname(e.target.value)}
-                          placeholder="Ej. Sir Galahad"
-                        />
-                        <Button
-                          variant="pixel"
-                          disabled={nickname.trim().length < 2 || busy}
-                          onClick={() => {
-                            const clean = nickname.trim();
-                            setNickname(clean);
-                            saveNickname(clean);
-                            setNicknameEditing(false);
-                          }}
-                        >
-                          Guardar nombre
-                        </Button>
-                      </div>
-                    ) : (
-                      <div className="flex items-center gap-3">
-                        <span className="font-semibold">{nickname}</span>
-                        <Button
-                          variant="pixel-dark"
-                          className="h-9 w-auto px-3 text-sm"
-                          disabled={busy}
-                          onClick={() => setNicknameEditing(true)}
-                        >
-                          <PencilLine className="mr-1 size-4" aria-hidden />
-                          Editar
-                        </Button>
-                      </div>
-                    )}
+                    <div className="flex w-full flex-col gap-2 sm:max-w-sm sm:flex-row">
+                      <input
+                        aria-label="Nombre o alias"
+                        className="form-control min-w-0 flex-1"
+                        value={nickname}
+                        maxLength={30}
+                        autoComplete="nickname"
+                        disabled={!nicknameEditing || busy}
+                        onChange={(e) => setNickname(e.target.value)}
+                        placeholder="Ej. Sir Galahad"
+                      />
+                      <Button
+                        className="my-auto"
+                        variant={nicknameEditing ? "pixel-positive" : "pixel-neutral"}
+                        disabled={busy || (nicknameEditing && nickname.trim().length < 2)}
+                        onClick={() => {
+                          if (!nicknameEditing) {
+                            setNicknameEditing(true);
+                            return;
+                          }
+                          const clean = nickname.trim();
+                          setNickname(clean);
+                          saveNickname(clean);
+                          setNicknameEditing(false);
+                        }}
+                      >
+                        {nicknameEditing ? (
+                          "Guardar nombre"
+                        ) : (
+                          <>
+                            <PencilLine className="size-4" aria-hidden="true" />
+                            Editar nombre
+                          </>
+                        )}
+                      </Button>
+                    </div>
                   </div>
-                {nickname.trim().length < 2 && (
+                  {nickname.trim().length < 2 && (
                     <p className="mt-3 text-sm text-destructive">
                       Escribe un nombre de al menos 2 caracteres para elegir una mesa.
                     </p>
                   )}
-                {auth.uid && (
+                  {auth.uid && (
                     <div className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                       {tables.map((table) => {
                         const state = getTableState(table, event.status);
@@ -432,13 +460,12 @@ function EventPage({ eventoId }: { eventoId: string }) {
                             key={table.id}
                             table={table}
                             state={state}
-                        selected={submittingTableId === table.id || reservation?.tableId === table.id}
-                        pending={submittingTableId === table.id}
+                            selected={
+                              submittingTableId === table.id || reservation?.tableId === table.id
+                            }
+                            pending={submittingTableId === table.id}
                             disabled={
-                              busy ||
-                              reservationLoading ||
-                              Boolean(reservation) ||
-                              !available
+                              busy || reservationLoading || Boolean(reservation) || !available
                             }
                             onSelect={() => void submitReservation(table.id)}
                           />
@@ -453,12 +480,6 @@ function EventPage({ eventoId }: { eventoId: string }) {
               <p className="sr-only" role="status">
                 <LoaderCircle className="animate-spin" />
                 Confirmando la reserva…
-              </p>
-            )}
-            {event.status === "published" && (
-              <p className="mt-6 bg-card p-4 pixel-frame">
-                Las reservaciones todavía no abren. Puedes consultar las mesas; vuelve después de la
-                hora de apertura.
               </p>
             )}
           </>

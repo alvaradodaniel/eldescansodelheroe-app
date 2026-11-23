@@ -37,6 +37,12 @@ suite("Firestore production security rules", () => {
     const guestDb = env.unauthenticatedContext().firestore();
     await expect(getDoc(doc(guestDb, "events/pub/reservations/user-a"))).rejects.toThrow();
   });
+  it("allows admins to read all event data but never write directly", async () => {
+    const db = env.authenticatedContext("admin-user", { admin: true }).firestore();
+    expect((await getDoc(doc(db, "events/draft"))).exists()).toBe(true);
+    expect((await getDoc(doc(db, "events/pub/reservations/user-a"))).exists()).toBe(true);
+    await expect(setDoc(doc(db, "events/draft"), { status: "published" })).rejects.toThrow();
+  });
   it("rejects direct writes and paths without an explicit rule", async () => {
     const db = env.authenticatedContext("user-a").firestore();
     await expect(setDoc(doc(db, "events/new-event"), { status: "published" })).rejects.toThrow();

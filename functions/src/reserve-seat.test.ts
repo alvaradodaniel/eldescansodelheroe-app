@@ -20,7 +20,6 @@ async function seedEvent(options?: {
 }) {
   await adminDb.doc(`events/${eventId}`).set({
     name: "Evento de prueba",
-    tagline: "Prueba",
     description: "Evento del emulador",
     startsAt: Timestamp.fromMillis(Date.now() + 3_600_000),
     opensAt: options?.opensAt ?? Timestamp.fromMillis(Date.now() - 1_000),

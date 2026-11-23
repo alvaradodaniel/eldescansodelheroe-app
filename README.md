@@ -30,11 +30,11 @@ La configuración web de Firebase está centralizada en `src/lib/firebase.ts`. P
 
 Firestore contiene `events/{eventId}` (nombre, descripción, `startsAt`, `opensAt`, zona horaria y estado), `events/{eventId}/tables/{tableId}` (capacidad, `reservedCount`, estado y datos descriptivos) y `events/{eventId}/reservations/{uid}` (máximo una reserva por usuario y evento). Firestore está previsto en `northamerica-south1`; Functions 2nd gen en `us-south1`.
 
-Las reglas productivas viven en `firestore.rules` y el emulador de pruebas de Functions conserva su configuración aislada en `firebase.emulator.json`/`firestore.emulator.rules`. Clientes pueden leer eventos publicados y sus mesas, consultar únicamente su reserva y no escribir documentos. Las callables `reserveSeat` y `cancelReservation` mantienen transaccionalmente el contador de la mesa y el estado de la reserva.
+Las reglas productivas viven en `firestore.rules` y el emulador de pruebas de Functions conserva su configuración aislada en `firebase.emulator.json`/`firestore.emulator.rules`. Clientes pueden leer eventos publicados y sus mesas, consultar únicamente su reserva y no escribir documentos. Las callables `reserveSeat` y `cancelReservation` mantienen transaccionalmente el contador de la mesa y el estado de la reserva. Las operaciones administrativas validan el Custom Claim `admin: true` tanto en Firestore Rules como en Cloud Functions.
 
 ## Crear datos de prueba
 
-Abre Firebase Emulator UI en `http://127.0.0.1:4000` (o Firestore en la pestaña correspondiente) y crea `events/{id}` con `name`, `tagline`, `description`, `startsAt` y `opensAt` como timestamps, `timezone: "America/Chihuahua"`, `status: "published"`, `band`, `createdAt` y `updatedAt`. Crea `events/{id}/tables/{tableId}` con `name`, `capacity` entero positivo, `reservedCount: 0`, `status: "active"`, `createdAt` y `updatedAt`; `description`, `game`, `host`, `level` son opcionales. El frontend inicia la sesión anónima en Auth Emulator. El estado publicado hace visible el evento; la callable permite reservar al alcanzar `opensAt`.
+Abre Firebase Emulator UI en `http://127.0.0.1:4000` (o Firestore en la pestaña correspondiente) y crea `events/{id}` con `name`, `description`, `startsAt` y `opensAt` como timestamps, `timezone: "America/Chihuahua"`, `status: "published"`, `band`, `createdAt` y `updatedAt`. Crea `events/{id}/tables/{tableId}` con `name`, `capacity` entero positivo, `reservedCount: 0`, `status: "active"`, `createdAt` y `updatedAt`; `description`, `game`, `host`, `level` son opcionales. El frontend inicia la sesión anónima en Auth Emulator. El estado publicado hace visible el evento; la callable permite reservar al alcanzar `opensAt`.
 
 ## Funcionalidades implementadas
 
@@ -43,13 +43,17 @@ Abre Firebase Emulator UI en `http://127.0.0.1:4000` (o Firestore en la pestaña
 - Estados de carga, error y lista vacía.
 - Reserva de un lugar y cancelación vía callable, con feedback de errores y protección transaccional ante solicitudes repetidas o concurrentes.
 - Consulta en vivo de la reserva propia y reglas que bloquean escrituras directas.
-- Pruebas de Functions existentes y pruebas de reglas de Firestore.
+- Panel privado para administrar eventos, mesas, reservaciones y plantillas semanales.
+- Acceso administrativo por correo/contraseña sin registro público; requiere el Custom Claim `admin: true`.
+- Pruebas de Functions, fechas y reglas de Firestore.
 
-El nickname solo se usa para presentación. La sesión anónima no puede recuperarse en otro dispositivo. No hay inicio Google ni panel administrativo.
+El nickname solo se usa para presentación. La sesión anónima no puede recuperarse en otro dispositivo. No hay inicio Google.
+
+Consulta [ADMIN_SETUP.md](ADMIN_SETUP.md) para crear al primer administrador. No habilites registro público de administradores.
 
 ## Cloudflare Workers
 
-La configuraciÃ³n de Cloudflare Workers, los valores de Firebase requeridos en Workers Builds y los comandos de preview/despliegue estÃ¡n documentados en [CLOUDFLARE_DEPLOYMENT.md](CLOUDFLARE_DEPLOYMENT.md).
+La configuración de Cloudflare Workers, los valores de Firebase requeridos en Workers Builds y los comandos de preview/despliegue están documentados en [CLOUDFLARE_DEPLOYMENT.md](CLOUDFLARE_DEPLOYMENT.md).
 
 ## Pruebas y verificaciones
 

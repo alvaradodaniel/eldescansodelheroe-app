@@ -19,7 +19,6 @@ export interface GameTable {
 export interface ReservationEvent {
   id: string;
   name: string;
-  tagline: string;
   description: string;
   dateLabel: string;
   timeLabel: string;

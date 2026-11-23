@@ -1,5 +1,5 @@
 import { cn } from "@/lib/utils";
-import { LoaderCircle } from "lucide-react";
+import { LoaderCircle, UserRound } from "lucide-react";
 import { isReservable, seatsLeft } from "../table-state";
 import type { GameTable, TableState } from "../types";
 import { SeatPips } from "./SeatPips";
@@ -14,7 +14,14 @@ interface TableCardProps {
   onSelect: (table: GameTable) => void;
 }
 
-export function TableCard({ table, state, selected, pending = false, disabled = false, onSelect }: TableCardProps) {
+export function TableCard({
+  table,
+  state,
+  selected,
+  pending = false,
+  disabled = false,
+  onSelect,
+}: TableCardProps) {
   const reservable = isReservable(state);
   const canSelect = reservable && !disabled;
   const left = seatsLeft(table);
@@ -49,7 +56,9 @@ export function TableCard({ table, state, selected, pending = false, disabled = 
         {selected && (
           <span className="inline-flex shrink-0 items-center gap-1 bg-gold px-1.5 py-0.5 font-pixel text-xs text-wood-dark">
             {pending ? (
-              <><LoaderCircle className="size-3 animate-spin" aria-hidden /> Reservando</>
+              <>
+                <LoaderCircle className="size-3 animate-spin" aria-hidden /> Reservando
+              </>
             ) : (
               "Tu mesa"
             )}
@@ -64,7 +73,11 @@ export function TableCard({ table, state, selected, pending = false, disabled = 
         )}
       >
         <div className="text-sm text-muted-foreground">
-          <span>{table.host}</span>
+          <div className="flex flex-wrap items-center gap-x-1.5">
+            <UserRound className="size-3.5 text-primary" aria-hidden="true" />
+            <span className="font-pixel text-xs uppercase tracking-wide">Anfitrión:</span>
+            <span className="font-semibold text-foreground">{table.host}</span>
+          </div>
           {table.level && (
             <span className="ml-2 font-semibold text-foreground">· {table.level}</span>
           )}
@@ -82,7 +95,10 @@ export function TableCard({ table, state, selected, pending = false, disabled = 
             ) : (
               <>
                 <span className="font-display text-2xl font-bold">{left}</span>
-                <span className="text-muted-foreground"> / {table.capacity} lugares libres</span>
+                <span className="text-muted-foreground">
+                  {" "}
+                  / {table.capacity} {table.capacity === 1 ? "lugar" : "lugares"} libres
+                </span>
               </>
             )}
           </p>
