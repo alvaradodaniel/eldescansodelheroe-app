@@ -1,5 +1,5 @@
-import { useEffect, useState, type FormEvent } from "react";
-import { Link, useNavigate } from "@tanstack/react-router";
+import { useState, type FormEvent } from "react";
+import { Link, Navigate, useNavigate } from "@tanstack/react-router";
 import { LogIn, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,9 +12,17 @@ export function AdminLoginPage() {
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  useEffect(() => {
-    if (!session.loading && session.isAdmin) void navigate({ to: "/admin", replace: true });
-  }, [session.loading, session.isAdmin, navigate]);
+  if (session.loading) {
+    return (
+      <main className="mx-auto flex min-h-screen max-w-4xl items-center px-5">
+        <div
+          className="h-24 w-full animate-pulse bg-card pixel-frame"
+          aria-label="Verificando sesión"
+        />
+      </main>
+    );
+  }
+  if (session.user && session.isAdmin) return <Navigate to="/admin" replace />;
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError("");

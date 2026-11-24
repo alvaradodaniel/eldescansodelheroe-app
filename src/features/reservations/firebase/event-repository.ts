@@ -35,7 +35,10 @@ export function subscribePublishedEvents(
   onNext: (events: FirestoreEvent[]) => void,
   onError: (error: Error) => void,
 ): Unsubscribe {
-  const publishedEventsQuery = query(eventsCollection, where("status", "==", "published"));
+  const publishedEventsQuery = query(
+    eventsCollection,
+    where("status", "in", ["published", "cancelled"]),
+  );
 
   return onSnapshot(
     publishedEventsQuery,

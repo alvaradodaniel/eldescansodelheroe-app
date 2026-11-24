@@ -1,6 +1,8 @@
 import type { FirestoreEvent, FirestoreTable } from "./types";
 import type { GameTable, ReservationEvent } from "../types";
 import { RESTAURANT_TIMEZONE } from "../timezone";
+import { getEventBand } from "../visual-bands";
+import { hasEventPassed } from "../event-lifecycle";
 
 const dateLabel = (date: Date, timezone: string) =>
   new Intl.DateTimeFormat("es-MX", {
@@ -20,6 +22,7 @@ export function toReservationEvent(event: FirestoreEvent, now = Date.now()): Res
   const starts = event.startsAt.toDate();
   const opens = event.opensAt.toDate();
   const timezone = RESTAURANT_TIMEZONE;
+  const past = hasEventPassed(starts, now) && event.status !== "cancelled";
   return {
     id: event.id,
     name: event.name,
@@ -30,10 +33,13 @@ export function toReservationEvent(event: FirestoreEvent, now = Date.now()): Res
     status:
       event.status === "closed" || event.status === "cancelled"
         ? event.status
-        : opens.getTime() <= now
-          ? "open"
-          : "published",
-    band: event.band || "band-provision",
+        : past
+          ? "closed"
+          : opens.getTime() <= now
+            ? "open"
+            : "published",
+    past,
+    band: getEventBand(starts),
   };
 }
 

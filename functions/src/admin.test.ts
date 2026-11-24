@@ -4,11 +4,15 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { adminDb } from "./firebase-admin.js";
 import {
   adminCancelReservationHandler,
+  adminDeleteEventHandler,
+  adminDeleteTableHandler,
   adminGetWeeklyTemplatesHandler,
   adminSaveWeeklyTemplatesHandler,
   adminSaveEventHandler,
   adminSaveTableHandler,
   type AdminCancelReservationData,
+  type AdminDeleteTableData,
+  type AdminDeleteEventData,
   type AdminSaveEventData,
   type AdminSaveTableData,
   type WeeklyTableTemplates,
@@ -51,7 +55,6 @@ const eventInput: AdminSaveEventData = {
   description: "",
   startsAt: new Date(Date.now() + 86_400_000).toISOString(),
   opensAt: new Date(Date.now() + 3_600_000).toISOString(),
-  band: "band-provision",
   status: "draft",
 };
 
@@ -100,6 +103,16 @@ describe("administrative Cloud Functions", () => {
     ).rejects.toMatchObject({ code: "permission-denied" });
 
     await expect(
+      adminDeleteTableHandler(
+        request<AdminDeleteTableData>({ eventId, tableId }, "regular-user", false),
+      ),
+    ).rejects.toMatchObject({ code: "permission-denied" });
+
+    await expect(
+      adminDeleteEventHandler(request<AdminDeleteEventData>({ eventId }, "regular-user", false)),
+    ).rejects.toMatchObject({ code: "permission-denied" });
+
+    await expect(
       adminCancelReservationHandler(
         request<AdminCancelReservationData>(
           { eventId, uid: "reservation-owner" },
@@ -123,6 +136,12 @@ describe("administrative Cloud Functions", () => {
       ),
     ).rejects.toMatchObject({ code: "unauthenticated" });
     await expect(
+      adminDeleteTableHandler(request<AdminDeleteTableData>({ eventId, tableId }, null)),
+    ).rejects.toMatchObject({ code: "unauthenticated" });
+    await expect(
+      adminDeleteEventHandler(request<AdminDeleteEventData>({ eventId }, null)),
+    ).rejects.toMatchObject({ code: "unauthenticated" });
+    await expect(
       adminCancelReservationHandler(
         request<AdminCancelReservationData>({ eventId, uid: "reservation-owner" }, null),
       ),
@@ -134,12 +153,27 @@ describe("administrative Cloud Functions", () => {
     ).rejects.toMatchObject({ code: "unauthenticated" });
   });
 
+  it("deletes an event and its nested tables and reservations for admins", async () => {
+    await adminDb.doc(`events/${eventId}/reservations/example-user`).set({
+      uid: "example-user",
+      tableId,
+      status: "confirmed",
+    });
+    await adminDeleteEventHandler(request<AdminDeleteEventData>({ eventId }));
+    expect((await adminDb.doc(`events/${eventId}`).get()).exists).toBe(false);
+    expect((await adminDb.doc(`events/${eventId}/tables/${tableId}`).get()).exists).toBe(false);
+    expect((await adminDb.doc(`events/${eventId}/reservations/example-user`).get()).exists).toBe(
+      false,
+    );
+  });
+
   it("accepts an administrator claim when saving an event", async () => {
     const result = await adminSaveEventHandler(
       request<AdminSaveEventData>({ ...eventInput, eventId }),
     );
     const saved = await adminDb.doc(`events/${result.eventId}`).get();
     expect(saved.data()).toMatchObject({ name: "Evento nuevo", status: "draft" });
+    expect(saved.data()).not.toHaveProperty("band");
   });
 
   it("rejects impossible calendar dates", async () => {
@@ -259,6 +293,37 @@ describe("administrative Cloud Functions", () => {
       capacity: 3,
       reservedCount: 1,
     });
+  });
+
+  it("deletes a table with no confirmed reservations", async () => {
+    await expect(
+      adminDeleteTableHandler(request<AdminDeleteTableData>({ eventId, tableId })),
+    ).resolves.toEqual({ deleted: true });
+    expect((await adminDb.doc(`events/${eventId}/tables/${tableId}`).get()).exists).toBe(false);
+  });
+
+  it("protects confirmed reservations from table deletion", async () => {
+    const uid = "table-delete-reservation";
+    await adminDb.doc(`events/${eventId}/tables/${tableId}`).update({ reservedCount: 1 });
+    await adminDb.doc(`events/${eventId}/reservations/${uid}`).set({
+      eventId,
+      tableId,
+      uid,
+      nickname: "Heroe",
+      status: "confirmed",
+      createdAt: Timestamp.now(),
+      updatedAt: Timestamp.now(),
+    });
+
+    await expect(
+      adminDeleteTableHandler(request<AdminDeleteTableData>({ eventId, tableId })),
+    ).rejects.toMatchObject({ code: "failed-precondition" });
+    expect((await adminDb.doc(`events/${eventId}/tables/${tableId}`).get()).data()).toMatchObject({
+      reservedCount: 1,
+    });
+    expect((await adminDb.doc(`events/${eventId}/reservations/${uid}`).get()).data()?.status).toBe(
+      "confirmed",
+    );
   });
 
   it("allows only one simultaneous cancellation of the same reservation", async () => {

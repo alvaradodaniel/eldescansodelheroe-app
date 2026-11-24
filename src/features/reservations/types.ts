@@ -24,6 +24,7 @@ export interface ReservationEvent {
   timeLabel: string;
   opensAtLabel: string;
   status: EventStatus;
+  past: boolean;
   band: string;
 }
 

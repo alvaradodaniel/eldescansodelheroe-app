@@ -1,6 +1,6 @@
 # El Descanso del Héroe · Reservaciones
 
-Aplicación de reservaciones con React 19, TypeScript, Vite, TanStack Router y Firebase. El frontend consulta eventos/mesas y la reserva y cancelación ocurren exclusivamente en Cloud Functions. El diseño actual se conserva.
+Aplicación de reservaciones con React, TypeScript, TanStack Start/Router y Firebase. El frontend lee eventos, mesas y la reserva propia. Las reservas, cancelaciones y operaciones administrativas se ejecutan en Cloud Functions.
 
 ## Ejecutar localmente
 
@@ -18,44 +18,31 @@ En otra terminal, desde la raíz:
 npm run dev
 ```
 
-Abre `http://localhost:5173`. Firebase CLI requiere Java 21 o superior. Si el
-`java` predeterminado de la terminal apunta a una versión anterior, establece
-`JAVA_HOME` al directorio de un JDK 21 antes de iniciar `npm run emulators`.
+Abre `http://localhost:5173`. La app de desarrollo se conecta únicamente a los emuladores del proyecto `demo-el-descanso`: Authentication (`127.0.0.1:9099`), Firestore (`127.0.0.1:8080`) y Functions (`127.0.0.1:5001`). No necesita `.env.local` para este modo. `npm run emulators` compila Functions antes de iniciarlas. No uses este flujo para desplegar.
 
-En desarrollo la app conecta Authentication (`127.0.0.1:9099`), Firestore (`127.0.0.1:8080`) y Functions (`127.0.0.1:5001`) usando exclusivamente `demo-el-descanso`; si se configura otro ID de proyecto, la app falla de forma cerrada. No se requiere `.env.local` para los emuladores. El comando `npm run emulators` compila Functions antes de iniciarlas. No despliegues desde este entorno.
+Firebase Emulator Suite requiere Java 21 o superior. Si `java` apunta a otra versión, configura `JAVA_HOME` con la ruta de un JDK 21 antes de iniciar los emuladores.
 
-## Configuración y datos
+## Firebase y datos
 
-La configuración web de Firebase está centralizada en `src/lib/firebase.ts`. Para producción se requieren `VITE_FIREBASE_API_KEY`, `VITE_FIREBASE_AUTH_DOMAIN`, `VITE_FIREBASE_PROJECT_ID`, `VITE_FIREBASE_STORAGE_BUCKET`, `VITE_FIREBASE_MESSAGING_SENDER_ID` y `VITE_FIREBASE_APP_ID`; configura esos valores en el entorno de hosting, no los guardes en el repositorio. Analytics no está implementado. En desarrollo la conexión a emuladores está forzada.
+La configuración web de Firebase está centralizada en `src/lib/firebase.ts`. Para producción se requieren `VITE_FIREBASE_API_KEY`, `VITE_FIREBASE_AUTH_DOMAIN`, `VITE_FIREBASE_PROJECT_ID`, `VITE_FIREBASE_STORAGE_BUCKET`, `VITE_FIREBASE_MESSAGING_SENDER_ID` y `VITE_FIREBASE_APP_ID`. En Cloudflare Workers Builds configúralas como variables de build. Son configuración pública del SDK web; nunca incluyas credenciales privadas de Admin SDK. Analytics no está implementado.
 
-Firestore contiene `events/{eventId}` (nombre, descripción, `startsAt`, `opensAt`, zona horaria y estado), `events/{eventId}/tables/{tableId}` (capacidad, `reservedCount`, estado y datos descriptivos) y `events/{eventId}/reservations/{uid}` (máximo una reserva por usuario y evento). Firestore está previsto en `northamerica-south1`; Functions 2nd gen en `us-south1`.
+Firestore usa esta estructura:
 
-Las reglas productivas viven en `firestore.rules` y el emulador de pruebas de Functions conserva su configuración aislada en `firebase.emulator.json`/`firestore.emulator.rules`. Clientes pueden leer eventos publicados y sus mesas, consultar únicamente su reserva y no escribir documentos. Las callables `reserveSeat` y `cancelReservation` mantienen transaccionalmente el contador de la mesa y el estado de la reserva. Las operaciones administrativas validan el Custom Claim `admin: true` tanto en Firestore Rules como en Cloud Functions.
+- `events/{eventId}`: nombre, descripción, fechas (`startsAt`, `opensAt`), zona horaria y estado.
+- `events/{eventId}/tables/{tableId}`: capacidad, contador `reservedCount`, estado y datos descriptivos opcionales.
+- `events/{eventId}/reservations/{uid}`: una reserva por usuario y evento; el UID es el ID del documento.
 
-## Crear datos de prueba
+Las fechas se muestran en `America/Chihuahua`. El color de los eventos y las mesas se calcula en el código; no se guarda en Firestore.
 
-Abre Firebase Emulator UI en `http://127.0.0.1:4000` (o Firestore en la pestaña correspondiente) y crea `events/{id}` con `name`, `description`, `startsAt` y `opensAt` como timestamps, `timezone: "America/Chihuahua"`, `status: "published"`, `band`, `createdAt` y `updatedAt`. Crea `events/{id}/tables/{tableId}` con `name`, `capacity` entero positivo, `reservedCount: 0`, `status: "active"`, `createdAt` y `updatedAt`; `description`, `game`, `host`, `level` son opcionales. El frontend inicia la sesión anónima en Auth Emulator. El estado publicado hace visible el evento; la callable permite reservar al alcanzar `opensAt`.
+Los eventos publicados y cancelados se muestran en la vista pública durante el evento y hasta 48 horas después de su inicio. Los eventos cancelados se identifican como tales y no aceptan reservas. Los estados borrador y cerrado no son visibles al público.
 
-## Funcionalidades implementadas
+Las reglas productivas viven en `firestore.rules`. Los clientes no escriben eventos, mesas ni reservaciones directamente. Las callables validan la autenticación, permisos y capacidad, y actualizan los contadores y reservas con transacciones. Las operaciones administrativas requieren el Custom Claim `admin: true`; consulta [ADMIN_SETUP.md](ADMIN_SETUP.md) para preparar la primera cuenta.
 
-- Inicio de sesión anónimo con persistencia local y UID de Firebase Auth.
-- Consulta en tiempo real de eventos publicados, evento individual y mesas.
-- Estados de carga, error y lista vacía.
-- Reserva de un lugar y cancelación vía callable, con feedback de errores y protección transaccional ante solicitudes repetidas o concurrentes.
-- Consulta en vivo de la reserva propia y reglas que bloquean escrituras directas.
-- Panel privado para administrar eventos, mesas, reservaciones y plantillas semanales.
-- Acceso administrativo por correo/contraseña sin registro público; requiere el Custom Claim `admin: true`.
-- Pruebas de Functions, fechas y reglas de Firestore.
-
-El nickname solo se usa para presentación. La sesión anónima no puede recuperarse en otro dispositivo. No hay inicio Google.
-
-Consulta [ADMIN_SETUP.md](ADMIN_SETUP.md) para crear al primer administrador. No habilites registro público de administradores.
-
-## Cloudflare Workers
-
-La configuración de Cloudflare Workers, los valores de Firebase requeridos en Workers Builds y los comandos de preview/despliegue están documentados en [CLOUDFLARE_DEPLOYMENT.md](CLOUDFLARE_DEPLOYMENT.md).
+La configuración de emuladores de pruebas de Functions vive en `firebase.emulator.json` y `firestore.emulator.rules`, separada de las reglas productivas. El alias `default` de `.firebaserc` apunta al demo; el alias `production` apunta al proyecto productivo. Para comandos de producción selecciona el alias explícitamente.
 
 ## Pruebas y verificaciones
+
+Ejecuta los grupos de pruebas de uno en uno. Cierra cualquier emulador que ya esté usando sus puertos (`8080` para Firestore, `9099` para Auth) antes de lanzar los comandos de pruebas de emuladores.
 
 ```sh
 npm test
@@ -66,6 +53,13 @@ npm run functions:lint
 npx tsc --noEmit
 npm run lint
 npm run build
+npm run preview
 ```
 
-La suite de Rules requiere el emulador; `npm run test:security` lo inicia con proyecto demo. La política actual de cancelación permite cancelar hasta `startsAt`, pero sigue siendo provisional y pendiente de aprobación del negocio. Antes de producción faltan aprobación de esa política, configuración/secretos de hosting, revisión operativa y validación con el proyecto Firebase real en un proceso separado.
+`npm test` ejecuta las pruebas unitarias del frontend; las pruebas de reglas requieren `npm run test:security`, que inicia Firestore Emulator con el proyecto demo. `npm run functions:test` inicia Auth y Firestore Emulator y ejecuta las pruebas de backend. `npm run preview` sirve localmente el build de Vite/Cloudflare. Estos comandos no despliegan.
+
+La política actual permite cancelar una reserva hasta el inicio del evento; sigue pendiente de aprobación del negocio. Antes de producción revisa esa política, configura los dominios y variables de hosting, despliega Functions y reglas al proyecto correcto y valida el flujo con un evento de prueba.
+
+## Despliegue
+
+La aplicación web se publica como Cloudflare Worker. Revisa [CLOUDFLARE_DEPLOYMENT.md](CLOUDFLARE_DEPLOYMENT.md). Firebase Functions y Firestore Rules se despliegan aparte; especifica `--project production` para no apuntar al proyecto demo.

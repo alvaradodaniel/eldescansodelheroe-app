@@ -15,15 +15,14 @@ function request(data: Partial<CancelReservationData>, uid?: string) {
   } as Parameters<typeof cancelReservationHandler>[0];
 }
 
-async function seedEvent(options?: { startsAt?: Timestamp }) {
+async function seedEvent() {
   await adminDb.doc(`events/${eventId}`).set({
     name: "Evento de cancelación",
     description: "Evento del emulador",
-    startsAt: options?.startsAt ?? Timestamp.fromMillis(Date.now() + 3_600_000),
+    startsAt: Timestamp.fromMillis(Date.now() + 3_600_000),
     opensAt: Timestamp.fromMillis(Date.now() - 1_000),
     timezone: "America/Chihuahua",
     status: "published",
-    band: "band-provision",
     createdAt: Timestamp.now(),
     updatedAt: Timestamp.now(),
   });
@@ -96,8 +95,10 @@ describe("cancelReservation with Firebase Emulator Suite", () => {
   });
 
   it("rejects cancellation after the event starts", async () => {
-    await seedEvent({ startsAt: Timestamp.fromMillis(Date.now() - 1_000) });
     await reserve("uid-late");
+    await adminDb.doc(`events/${eventId}`).update({
+      startsAt: Timestamp.fromMillis(Date.now() - 1_000),
+    });
 
     await expect(cancelReservationHandler(request({ eventId }, "uid-late"))).rejects.toMatchObject({
       code: "failed-precondition",

@@ -13,6 +13,7 @@ export interface ReserveSeatData {
 interface EventData {
   status?: string;
   opensAt?: Timestamp;
+  startsAt?: Timestamp;
 }
 
 interface TableData {
@@ -81,6 +82,9 @@ export async function reserveSeatHandler(request: CallableRequest<ReserveSeatDat
 
     if (!(event.opensAt instanceof Timestamp) || event.opensAt.toMillis() > Date.now()) {
       throw new HttpsError("failed-precondition", "Reservations are not open yet.");
+    }
+    if (!(event.startsAt instanceof Timestamp) || event.startsAt.toMillis() <= Date.now()) {
+      throw new HttpsError("failed-precondition", "Event has already started.");
     }
 
     if (!tableSnapshot.exists) {

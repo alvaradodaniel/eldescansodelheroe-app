@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { Link, useNavigate } from "@tanstack/react-router";
 import {
   ArrowLeft,
@@ -29,8 +29,12 @@ import {
   RESTAURANT_TIMEZONE,
   toChihuahuaDateTimeInput,
 } from "@/features/reservations/timezone";
+import { getEventBand, getTableBand } from "@/features/reservations/visual-bands";
+import { useAdminConfirm } from "./admin-confirm-context";
 import {
   adminCancelReservation,
+  adminDeleteEvent,
+  adminDeleteTable,
   adminSaveEvent,
   adminSaveTable,
   getWeeklyTableTemplates,
@@ -50,19 +54,6 @@ import {
 } from "./admin-service";
 
 const STATUSES = ["draft", "published", "closed", "cancelled"] as const;
-const BANDS = [
-  "band-provision",
-  "band-banquete",
-  "band-bestiario",
-  "band-postres",
-  "band-pociones",
-  "band-lattes",
-  "band-cafes",
-  "band-otros",
-  "band-temporada",
-  "band-sylhar",
-  "band-croacoco",
-] as const;
 const WEEKDAYS: { key: Weekday; label: string }[] = [
   { key: "monday", label: "Lunes" },
   { key: "tuesday", label: "Martes" },
@@ -77,6 +68,7 @@ const statusName: Record<string, string> = {
   published: "Publicado",
   closed: "Cerrado",
   cancelled: "Cancelado",
+  past: "Finalizado",
   confirmed: "Confirmada",
   pending: "Pendiente",
 };
@@ -87,6 +79,7 @@ const statusAppearance: Record<string, { className: string; Icon: LucideIcon }> 
   confirmed: { className: "bg-seat-open text-seat-open-foreground", Icon: CheckCircle },
   closed: { className: "bg-muted text-muted-foreground", Icon: LockKeyhole },
   cancelled: { className: "bg-destructive/15 text-destructive", Icon: XCircle },
+  past: { className: "bg-muted text-muted-foreground", Icon: Clock3 },
 };
 const dateLabel = (value: { toDate(): Date } | undefined) =>
   value
@@ -101,10 +94,12 @@ function AdminPage({
   children,
   title,
   subtitle,
+  action,
 }: {
   children: ReactNode;
   title: string;
   subtitle?: string;
+  action?: ReactNode;
 }) {
   return (
     <>
@@ -112,7 +107,12 @@ function AdminPage({
         <p className="font-pixel text-xs uppercase tracking-[0.18em] text-primary">
           Administración
         </p>
-        <h1 className="mt-1 font-display text-3xl font-bold leading-tight sm:text-4xl">{title}</h1>
+        <div className="flex items-center justify-between gap-4">
+          <h1 className="mt-1 font-display text-3xl font-bold leading-tight sm:text-4xl">
+            {title}
+          </h1>
+          {action}
+        </div>
         {subtitle && <p className="mt-2 max-w-3xl text-muted-foreground">{subtitle}</p>}
       </div>
       {children}
@@ -141,17 +141,17 @@ export function AdminDashboardPage() {
         </p>
       ) : !stats ? (
         <div
-          className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3"
+          className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6"
           aria-label="Cargando resumen"
           aria-busy="true"
         >
           {[0, 1, 2, 3, 4, 5].map((i) => (
-            <div key={i} className="h-28 animate-pulse bg-card pixel-frame" />
+            <div key={i} className="h-20 animate-pulse bg-card pixel-frame" />
           ))}
         </div>
       ) : (
         <>
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6">
             <Metric
               label="Eventos"
               value={stats.events}
@@ -242,21 +242,16 @@ function Metric({
   accent: string;
 }) {
   return (
-    <div className="relative overflow-hidden bg-card p-4 pixel-frame">
-      <div className="flex items-start justify-between gap-3">
-        <p className="max-w-[75%] font-pixel text-xs uppercase leading-relaxed tracking-wide text-muted-foreground">
+    <div className="flex min-h-20 items-center gap-3 bg-card p-3 pixel-frame">
+      <span className={cn("flex size-8 shrink-0 items-center justify-center", accent)}>
+        <Icon aria-hidden="true" className="size-4" />
+      </span>
+      <div className="min-w-0">
+        <p className="font-display text-2xl font-bold leading-none sm:text-3xl">{value}</p>
+        <p className="mt-1 font-pixel text-[0.58rem] uppercase leading-tight tracking-wide text-muted-foreground sm:text-[0.65rem]">
           {label}
         </p>
-        <span
-          className={cn(
-            "flex size-9 shrink-0 items-center justify-center border-2 border-wood-dark/10",
-            accent,
-          )}
-        >
-          <Icon aria-hidden="true" className="size-5" />
-        </span>
       </div>
-      <p className="mt-2 font-display text-4xl font-bold leading-none">{value}</p>
     </div>
   );
 }
@@ -279,9 +274,11 @@ function StatusBadge({ status }: { status: string }) {
 }
 
 export function AdminEventsPage() {
+  const confirm = useAdminConfirm();
   const [events, setEvents] = useState<AdminEvent[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [deletingEventId, setDeletingEventId] = useState<string | null>(null);
   useEffect(
     () =>
       subscribeAdminEvents(
@@ -296,19 +293,43 @@ export function AdminEventsPage() {
       ),
     [],
   );
+  async function deleteEvent(event: AdminEvent) {
+    const confirmed = await confirm({
+      title: `¿Eliminar “${event.name}”?`,
+      description:
+        "Se eliminarán el evento, sus mesas y sus reservaciones. Esta acción no se puede deshacer.",
+      confirmLabel: "Eliminar evento",
+      destructive: true,
+    });
+    if (!confirmed) return;
+    setDeletingEventId(event.id);
+    try {
+      await adminDeleteEvent({ eventId: event.id });
+      toast.success("Evento eliminado.");
+    } catch (cause) {
+      toast.error(cause instanceof Error ? cause.message : "No se pudo eliminar el evento.");
+    } finally {
+      setDeletingEventId(null);
+    }
+  }
   return (
     <AdminPage
       title="Eventos"
       subtitle="Consulta y administra los eventos publicados y en preparación."
-    >
-      <div className="mb-5 flex justify-end">
-        <Button variant="pixel-positive" asChild>
+      action={
+        <Button
+          variant="pixel-positive"
+          size="icon"
+          asChild
+          aria-label="Crear evento"
+          title="Crear evento"
+        >
           <Link to="/admin/eventos/nuevo">
             <Plus aria-hidden="true" />
-            Crear evento
           </Link>
         </Button>
-      </div>
+      }
+    >
       {error && (
         <p role="alert" className="bg-destructive/10 p-3 text-destructive">
           {error}
@@ -326,29 +347,64 @@ export function AdminEventsPage() {
               className="flex flex-col bg-card pixel-frame transition-transform duration-200 hover:-translate-y-1"
             >
               <div
-                className={
-                  event.band +
-                  " flex min-h-16 items-center border-b-4 border-wood-dark bg-band px-4 py-3 text-band-foreground"
-                }
+                className={cn(
+                  "flex items-center justify-between gap-3 border-b-4 border-wood-dark bg-band px-4 py-3 text-band-foreground",
+                  getEventBand(event.startsAt.toDate()),
+                  event.status !== "cancelled" &&
+                    event.startsAt.toMillis() <= Date.now() &&
+                    "grayscale",
+                )}
               >
-                <h2 className="font-display text-xl font-bold leading-tight">{event.name}</h2>
+                <h2 className="truncate font-display text-lg font-bold leading-tight">
+                  {event.name}
+                </h2>
+                <StatusBadge
+                  status={
+                    event.status === "cancelled"
+                      ? "cancelled"
+                      : event.startsAt.toMillis() <= Date.now()
+                        ? "past"
+                        : event.status
+                  }
+                />
               </div>
-              <div className="flex flex-1 flex-wrap items-center justify-between gap-4 p-4">
-                <div className="space-y-2">
-                  <StatusBadge status={event.status} />
-                  <p className="flex items-start gap-2 text-sm text-muted-foreground">
-                    <CalendarDays
-                      className="mt-0.5 size-4 shrink-0 text-primary"
-                      aria-hidden="true"
-                    />
+              <div className="flex flex-1 items-center justify-between gap-3 p-3 sm:p-4">
+                <div className="min-w-0 space-y-1.5 text-sm">
+                  <p className="flex items-center gap-2 font-semibold">
+                    <CalendarDays className="size-4 shrink-0 text-primary" aria-hidden="true" />
                     <span>{dateLabel(event.startsAt)} · hora de Chihuahua</span>
                   </p>
+                  <p className="flex items-center gap-2 text-muted-foreground">
+                    <Clock3 className="size-4 shrink-0 text-primary" aria-hidden="true" />
+                    <span>Apertura {dateLabel(event.opensAt)}</span>
+                  </p>
+                  {event.description && (
+                    <p className="line-clamp-2 text-muted-foreground">{event.description}</p>
+                  )}
                 </div>
-                <Button variant="pixel-neutral" size="pixel-sm" asChild>
-                  <Link to="/admin/eventos/$eventoId" params={{ eventoId: event.id }}>
-                    <Settings2 aria-hidden="true" /> Administrar
-                  </Link>
-                </Button>
+                <div className="flex shrink-0 gap-2">
+                  <Button
+                    variant="pixel-neutral"
+                    size="icon"
+                    asChild
+                    aria-label={`Administrar evento ${event.name}`}
+                    title={`Administrar evento ${event.name}`}
+                  >
+                    <Link to="/admin/eventos/$eventoId" params={{ eventoId: event.id }}>
+                      <Settings2 aria-hidden="true" />
+                    </Link>
+                  </Button>
+                  <Button
+                    variant="pixel-danger"
+                    size="icon"
+                    aria-label={`Eliminar evento ${event.name}`}
+                    title={`Eliminar evento ${event.name}`}
+                    disabled={deletingEventId === event.id}
+                    onClick={() => void deleteEvent(event)}
+                  >
+                    <Trash2 aria-hidden="true" />
+                  </Button>
+                </div>
               </div>
             </article>
           ))}
@@ -359,7 +415,9 @@ export function AdminEventsPage() {
 }
 
 export function AdminWeeklyTemplatesPage() {
+  const confirm = useAdminConfirm();
   const [templates, setTemplates] = useState<WeeklyTableTemplates | null>(null);
+  const [savedSnapshot, setSavedSnapshot] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -370,7 +428,10 @@ export function AdminWeeklyTemplatesPage() {
     let active = true;
     getWeeklyTableTemplates()
       .then((value) => {
-        if (active) setTemplates(value);
+        if (active) {
+          setTemplates(value);
+          setSavedSnapshot(JSON.stringify(value));
+        }
       })
       .catch((cause) => {
         if (active)
@@ -419,13 +480,14 @@ export function AdminWeeklyTemplatesPage() {
     );
   }
 
-  function removeTemplate(day: Weekday, id: string, name: string) {
-    if (
-      !window.confirm(
-        `¿Eliminar “${name}” de la plantilla de ${WEEKDAYS.find((item) => item.key === day)?.label}? Los eventos existentes no cambiarán.`,
-      )
-    )
-      return;
+  async function removeTemplate(day: Weekday, id: string, name: string) {
+    const confirmed = await confirm({
+      title: `¿Eliminar “${name}” de la plantilla?`,
+      description: `Se quitará de la plantilla de ${WEEKDAYS.find((item) => item.key === day)?.label}. Los eventos existentes no cambiarán.`,
+      confirmLabel: "Eliminar mesa",
+      destructive: true,
+    });
+    if (!confirmed) return;
     setExpandedRows((current) => {
       const next = new Set(current);
       next.delete(id);
@@ -442,6 +504,7 @@ export function AdminWeeklyTemplatesPage() {
 
   async function save() {
     if (!templates) return;
+    const snapshot = JSON.stringify(templates);
     const invalidDay = WEEKDAYS.find(({ key }) =>
       templates.days[key].some(
         (row) =>
@@ -462,6 +525,7 @@ export function AdminWeeklyTemplatesPage() {
     setError("");
     try {
       await saveWeeklyTableTemplates(templates);
+      setSavedSnapshot(snapshot);
       toast.success("Plantillas semanales guardadas.");
     } catch (cause) {
       const message =
@@ -472,6 +536,9 @@ export function AdminWeeklyTemplatesPage() {
       setSaving(false);
     }
   }
+
+  const hasUnsavedChanges =
+    templates !== null && savedSnapshot !== null && JSON.stringify(templates) !== savedSnapshot;
 
   return (
     <AdminPage
@@ -485,201 +552,201 @@ export function AdminWeeklyTemplatesPage() {
           {error}
         </p>
       ) : templates ? (
-        <div className="space-y-4">
+        <div className="space-y-4 pb-28">
           {WEEKDAYS.map(({ key, label }) => (
-            <section key={key} className="bg-card pixel-frame">
-              <div className="flex items-start gap-2 sm:gap-3">
-                <details
-                  open={expandedDays.has(key)}
-                  onToggle={(event) => {
-                    const isOpen = event.currentTarget.open;
-                    setExpandedDays((current) => {
-                      const next = new Set(current);
-                      if (isOpen) next.add(key);
-                      else next.delete(key);
-                      return next;
-                    });
-                  }}
-                  className="min-w-0 flex-1"
-                >
-                  <summary className="flex min-w-0 flex-1 cursor-pointer list-none items-center gap-3 rounded-sm p-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold [&::-webkit-details-marker]:hidden sm:p-5">
-                    <span className="flex size-10 shrink-0 items-center justify-center border-2 border-wood-dark/15 bg-parchment text-primary">
-                      <CalendarDays className="size-5" aria-hidden="true" />
+            <section key={key} className="relative bg-card pixel-frame">
+              <details
+                open={expandedDays.has(key)}
+                onToggle={(event) => {
+                  const isOpen = event.currentTarget.open;
+                  setExpandedDays((current) => {
+                    const next = new Set(current);
+                    if (isOpen) next.add(key);
+                    else next.delete(key);
+                    return next;
+                  });
+                }}
+                className="min-w-0"
+              >
+                <summary className="flex min-w-0 cursor-pointer list-none items-center gap-3 rounded-sm p-4 pr-16 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold [&::-webkit-details-marker]:hidden sm:p-5 sm:pr-20">
+                  <span className="flex size-10 shrink-0 items-center justify-center border-2 border-wood-dark/15 bg-parchment text-primary">
+                    <CalendarDays className="size-5" aria-hidden="true" />
+                  </span>
+                  <span className="min-w-0">
+                    <span className="block font-display text-xl font-bold">{label}</span>
+                    <span className="block text-sm text-muted-foreground">
+                      {templates.days[key].length}{" "}
+                      {templates.days[key].length === 1
+                        ? "mesa predeterminada"
+                        : "mesas predeterminadas"}
                     </span>
-                    <span className="min-w-0">
-                      <span className="block font-display text-xl font-bold">{label}</span>
-                      <span className="block text-sm text-muted-foreground">
-                        {templates.days[key].length}{" "}
-                        {templates.days[key].length === 1
-                          ? "mesa predeterminada"
-                          : "mesas predeterminadas"}
-                      </span>
-                    </span>
-                    <ChevronDown
-                      className="accordion-chevron ml-auto size-5 shrink-0 text-primary"
-                      aria-hidden="true"
-                    />
-                  </summary>
-                  <div className="space-y-3 border-t-2 border-wood-dark/15 px-4 py-4 sm:px-5">
-                    {templates.days[key].length === 0 ? (
-                      <p className="border-2 border-dashed border-border p-4 text-sm text-muted-foreground">
-                        Este día no tiene mesas predeterminadas. Agrega una para usarla al crear
-                        eventos.
-                      </p>
-                    ) : (
-                      templates.days[key].map((row) => (
-                        <details
-                          key={row.id}
-                          open={expandedRows.has(row.id)}
-                          onToggle={(event) => {
-                            const isOpen = event.currentTarget.open;
-                            setExpandedRows((current) => {
-                              const next = new Set(current);
-                              if (isOpen) next.add(row.id);
-                              else next.delete(row.id);
-                              return next;
-                            });
-                          }}
-                          className="border-2 border-wood-dark/20 bg-background"
-                        >
-                          <summary className="flex cursor-pointer list-none flex-wrap items-center gap-x-4 gap-y-2 p-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold [&::-webkit-details-marker]:hidden sm:px-4">
-                            <span className="min-w-32 flex-1">
-                              <span className="block font-display font-bold">
-                                {row.name || "Mesa sin nombre"}
-                              </span>
-                              <span className="text-sm text-muted-foreground">
-                                {row.host || "Anfitrión pendiente"}
-                              </span>
+                  </span>
+                  <ChevronDown
+                    className="accordion-chevron ml-auto size-5 shrink-0 text-primary"
+                    aria-hidden="true"
+                  />
+                </summary>
+                <div className="space-y-3 border-t-2 border-wood-dark/15 px-4 py-4 sm:px-5">
+                  {templates.days[key].length === 0 ? (
+                    <p className="border-2 border-dashed border-border p-4 text-sm text-muted-foreground">
+                      Este día no tiene mesas predeterminadas. Agrega una para usarla al crear
+                      eventos.
+                    </p>
+                  ) : (
+                    templates.days[key].map((row) => (
+                      <details
+                        key={row.id}
+                        open={expandedRows.has(row.id)}
+                        onToggle={(event) => {
+                          const isOpen = event.currentTarget.open;
+                          setExpandedRows((current) => {
+                            const next = new Set(current);
+                            if (isOpen) next.add(row.id);
+                            else next.delete(row.id);
+                            return next;
+                          });
+                        }}
+                        className="border-2 border-wood-dark/20 bg-background"
+                      >
+                        <summary className="flex cursor-pointer list-none flex-wrap items-center gap-x-4 gap-y-2 p-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold [&::-webkit-details-marker]:hidden sm:px-4">
+                          <span className="min-w-32 flex-1">
+                            <span className="block font-display font-bold">
+                              {row.name || "Mesa sin nombre"}
                             </span>
                             <span className="text-sm text-muted-foreground">
-                              {row.capacity} {row.capacity === 1 ? "lugar" : "lugares"}
+                              {row.host || "Anfitrión pendiente"}
                             </span>
-                            <span
-                              className={cn(
-                                "border px-2 py-0.5 font-pixel text-[0.65rem] uppercase",
-                                row.status === "active"
-                                  ? "border-seat-open/30 bg-seat-open/10 text-seat-open"
-                                  : "border-destructive/20 bg-destructive/10 text-destructive",
-                              )}
-                            >
-                              {row.status === "active" ? "Activa" : "Desactivada"}
-                            </span>
-                            <ChevronDown
-                              className="accordion-chevron size-4 text-primary"
-                              aria-hidden="true"
-                            />
-                          </summary>
-                          <div className="grid gap-4 border-t-2 border-wood-dark/10 p-4 sm:grid-cols-2 lg:grid-cols-3">
-                            <Field label="Nombre de mesa">
-                              <Input
-                                required
-                                maxLength={100}
-                                value={row.name}
-                                onChange={(e) =>
-                                  updateTemplate(key, row.id, { name: e.target.value })
-                                }
-                              />
-                            </Field>
-                            <Field label="Master / anfitrión">
-                              <Input
-                                required
-                                maxLength={100}
-                                value={row.host}
-                                onChange={(e) =>
-                                  updateTemplate(key, row.id, { host: e.target.value })
-                                }
-                                placeholder="Nombre del Master"
-                              />
-                            </Field>
-                            <Field label="Capacidad">
-                              <Input
-                                required
-                                type="number"
-                                min={1}
-                                max={100}
-                                value={row.capacity}
-                                onChange={(e) =>
-                                  updateTemplate(key, row.id, { capacity: Number(e.target.value) })
-                                }
-                              />
-                            </Field>
-                            <Field label="Juego">
-                              <Input
-                                maxLength={100}
-                                value={row.game}
-                                onChange={(e) =>
-                                  updateTemplate(key, row.id, { game: e.target.value })
-                                }
-                              />
-                            </Field>
-                            <Field label="Estado">
-                              <select
-                                className="form-control w-full"
-                                value={row.status}
-                                onChange={(e) =>
-                                  updateTemplate(key, row.id, {
-                                    status: e.target.value as WeeklyTableTemplate["status"],
-                                  })
-                                }
-                              >
-                                <option value="active">Activa</option>
-                                <option value="closed">Desactivada</option>
-                              </select>
-                            </Field>
-                            {row.status === "closed" && (
-                              <Field label="Motivo de desactivación">
-                                <Input
-                                  maxLength={200}
-                                  value={row.closedReason}
-                                  onChange={(e) =>
-                                    updateTemplate(key, row.id, { closedReason: e.target.value })
-                                  }
-                                />
-                              </Field>
+                          </span>
+                          <span className="text-sm text-muted-foreground">
+                            {row.capacity} {row.capacity === 1 ? "lugar" : "lugares"}
+                          </span>
+                          <span
+                            className={cn(
+                              "border px-2 py-0.5 font-pixel text-[0.65rem] uppercase",
+                              row.status === "active"
+                                ? "border-seat-open/30 bg-seat-open/10 text-seat-open"
+                                : "border-destructive/20 bg-destructive/10 text-destructive",
                             )}
-                            <div className="sm:col-span-2 lg:col-span-3">
-                              <Field label="Descripción">
-                                <textarea
-                                  className="form-control min-h-16 w-full"
-                                  maxLength={500}
-                                  value={row.description}
-                                  onChange={(e) =>
-                                    updateTemplate(key, row.id, { description: e.target.value })
-                                  }
-                                />
-                              </Field>
-                            </div>
-                            <div className="flex justify-end sm:col-span-2 lg:col-span-3">
-                              <Button
-                                variant="pixel-danger"
-                                size="icon"
-                                aria-label={`Eliminar ${row.name} de la plantilla`}
-                                title={`Eliminar ${row.name} de la plantilla`}
-                                onClick={() => removeTemplate(key, row.id, row.name)}
-                              >
-                                <Trash2 aria-hidden="true" />
-                              </Button>
-                            </div>
+                          >
+                            {row.status === "active" ? "Activa" : "Desactivada"}
+                          </span>
+                          <ChevronDown
+                            className="accordion-chevron size-4 text-primary"
+                            aria-hidden="true"
+                          />
+                        </summary>
+                        <div className="grid gap-4 border-t-2 border-wood-dark/10 p-4 sm:grid-cols-2 lg:grid-cols-3">
+                          <Field label="Nombre de mesa">
+                            <Input
+                              required
+                              maxLength={100}
+                              value={row.name}
+                              onChange={(e) =>
+                                updateTemplate(key, row.id, { name: e.target.value })
+                              }
+                            />
+                          </Field>
+                          <Field label="Master / anfitrión">
+                            <Input
+                              required
+                              maxLength={100}
+                              value={row.host}
+                              onChange={(e) =>
+                                updateTemplate(key, row.id, { host: e.target.value })
+                              }
+                              placeholder="Nombre del Master"
+                            />
+                          </Field>
+                          <Field label="Capacidad">
+                            <Input
+                              required
+                              type="number"
+                              min={1}
+                              max={100}
+                              value={row.capacity}
+                              onChange={(e) =>
+                                updateTemplate(key, row.id, { capacity: Number(e.target.value) })
+                              }
+                            />
+                          </Field>
+                          <Field label="Juego">
+                            <Input
+                              maxLength={100}
+                              value={row.game}
+                              onChange={(e) =>
+                                updateTemplate(key, row.id, { game: e.target.value })
+                              }
+                            />
+                          </Field>
+                          <Field label="Estado">
+                            <select
+                              className="form-control w-full"
+                              value={row.status}
+                              onChange={(e) =>
+                                updateTemplate(key, row.id, {
+                                  status: e.target.value as WeeklyTableTemplate["status"],
+                                })
+                              }
+                            >
+                              <option value="active">Activa</option>
+                              <option value="closed">Desactivada</option>
+                            </select>
+                          </Field>
+                          {row.status === "closed" && (
+                            <Field label="Motivo de desactivación">
+                              <Input
+                                maxLength={200}
+                                value={row.closedReason}
+                                onChange={(e) =>
+                                  updateTemplate(key, row.id, { closedReason: e.target.value })
+                                }
+                              />
+                            </Field>
+                          )}
+                          <div className="sm:col-span-2 lg:col-span-3">
+                            <Field label="Descripción">
+                              <textarea
+                                className="form-control min-h-16 w-full"
+                                maxLength={500}
+                                value={row.description}
+                                onChange={(e) =>
+                                  updateTemplate(key, row.id, { description: e.target.value })
+                                }
+                              />
+                            </Field>
                           </div>
-                        </details>
-                      ))
-                    )}
-                  </div>
-                </details>
-                <Button
-                  className="m-3 shrink-0 sm:m-4"
-                  variant="pixel-positive"
-                  size="pixel-sm"
-                  disabled={templates.days[key].length >= 20}
-                  title={
-                    templates.days[key].length >= 20 ? "Máximo de 20 mesas por día" : undefined
-                  }
-                  onClick={() => addTemplate(key)}
-                >
-                  <Plus aria-hidden="true" />
-                  Agregar mesa
-                </Button>
-              </div>
+                          <div className="flex justify-end sm:col-span-2 lg:col-span-3">
+                            <Button
+                              variant="pixel-danger"
+                              size="icon"
+                              aria-label={`Eliminar ${row.name} de la plantilla`}
+                              title={`Eliminar ${row.name} de la plantilla`}
+                              onClick={() => void removeTemplate(key, row.id, row.name)}
+                            >
+                              <Trash2 aria-hidden="true" />
+                            </Button>
+                          </div>
+                        </div>
+                      </details>
+                    ))
+                  )}
+                </div>
+              </details>
+              <Button
+                className="absolute right-3 top-5 z-10"
+                variant="pixel-positive"
+                size="icon"
+                aria-label={`Agregar mesa al ${label.toLowerCase()}`}
+                title={
+                  templates.days[key].length >= 20
+                    ? "Máximo de 20 mesas por día"
+                    : `Agregar mesa al ${label.toLowerCase()}`
+                }
+                disabled={templates.days[key].length >= 20}
+                onClick={() => addTemplate(key)}
+              >
+                <Plus aria-hidden="true" />
+              </Button>
             </section>
           ))}
           {error && (
@@ -687,12 +754,29 @@ export function AdminWeeklyTemplatesPage() {
               {error}
             </p>
           )}
-          <Button variant="pixel-positive" disabled={saving} onClick={() => void save()}>
-            <Save aria-hidden="true" />
-            {saving ? "Guardando…" : "Guardar todas las plantillas"}
-          </Button>
         </div>
       ) : null}
+      {templates && (
+        <div className="fixed inset-x-0 bottom-0 z-40 border-t-4 border-wood-dark/20 bg-parchment/95 px-4 py-3 backdrop-blur-sm [padding-bottom:calc(0.75rem+env(safe-area-inset-bottom))]">
+          <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 sm:px-2">
+            <p className="text-sm text-muted-foreground" aria-live="polite">
+              {saving
+                ? "Guardando cambios…"
+                : hasUnsavedChanges
+                  ? "Tienes cambios sin guardar"
+                  : "Plantillas guardadas"}
+            </p>
+            <Button
+              variant="pixel-positive"
+              disabled={saving || !hasUnsavedChanges}
+              onClick={() => void save()}
+            >
+              <Save aria-hidden="true" />
+              {saving ? "Guardando…" : hasUnsavedChanges ? "Guardar cambios" : "Cambios guardados"}
+            </Button>
+          </div>
+        </div>
+      )}
     </AdminPage>
   );
 }
@@ -750,9 +834,11 @@ export function AdminEventEditorPage({ eventId }: { eventId?: string }) {
 function EventEditor({
   initial,
   onSaved,
+  onCancel,
 }: {
   initial: AdminEvent | null;
   onSaved: (id: string) => void;
+  onCancel?: () => void;
 }) {
   const [dateDefaults] = useState(() => getNextEventDateDefaults());
   const [name, setName] = useState(initial?.name ?? "");
@@ -763,7 +849,6 @@ function EventEditor({
   const [opensAt, setOpensAt] = useState(
     () => toInputDate(initial?.opensAt) || dateDefaults.opensAt,
   );
-  const [band, setBand] = useState(initial?.band ?? "band-provision");
   const [status, setStatus] = useState(initial?.status ?? "draft");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -778,7 +863,6 @@ function EventEditor({
         description,
         startsAt: chihuahuaDateTimeToIso(startsAt),
         opensAt: chihuahuaDateTimeToIso(opensAt),
-        band,
         status,
       });
       onSaved(id);
@@ -829,19 +913,6 @@ function EventEditor({
             onChange={(e) => setOpensAt(e.target.value)}
           />
         </Field>
-        <Field label="Banda visual">
-          <select
-            className="form-control w-full"
-            value={band}
-            onChange={(e) => setBand(e.target.value)}
-          >
-            {BANDS.map((item) => (
-              <option key={item} value={item}>
-                {item.replace("band-", "")}
-              </option>
-            ))}
-          </select>
-        </Field>
         <Field label="Estado">
           <select
             className="form-control w-full"
@@ -874,18 +945,27 @@ function EventEditor({
           <Save aria-hidden="true" />
           {busy ? "Guardando…" : "Guardar evento"}
         </Button>
-        <Button variant="pixel-danger" type="button" asChild>
-          <Link to="/admin/eventos">
-            <ArrowLeft aria-hidden="true" />
+        {onCancel ? (
+          <Button variant="pixel-danger" type="button" onClick={onCancel}>
+            <X aria-hidden="true" />
             Cancelar
-          </Link>
-        </Button>
+          </Button>
+        ) : (
+          <Button variant="pixel-danger" type="button" asChild>
+            <Link to="/admin/eventos">
+              <ArrowLeft aria-hidden="true" />
+              Cancelar
+            </Link>
+          </Button>
+        )}
       </div>
     </form>
   );
 }
 
 export function AdminEventDetailPage({ eventId }: { eventId: string }) {
+  const confirm = useAdminConfirm();
+  const navigate = useNavigate();
   const [event, setEvent] = useState<AdminEvent | null>(null);
   const [tables, setTables] = useState<AdminTable[]>([]);
   const [reservations, setReservations] = useState<AdminReservation[]>([]);
@@ -894,9 +974,17 @@ export function AdminEventDetailPage({ eventId }: { eventId: string }) {
   const [editing, setEditing] = useState(false);
   const [tableEditor, setTableEditor] = useState<AdminTable | null | undefined>(undefined);
   const [savingStatus, setSavingStatus] = useState(false);
+  const [deletingEvent, setDeletingEvent] = useState(false);
+  const [deletingTableId, setDeletingTableId] = useState<string | null>(null);
+  const tableEditorRef = useRef<HTMLDivElement>(null);
   const [search, setSearch] = useState("");
   const [tableFilter, setTableFilter] = useState("all");
   const [reservationFilter, setReservationFilter] = useState("all");
+  useEffect(() => {
+    if (tableEditor !== undefined) {
+      tableEditorRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  }, [tableEditor]);
   useEffect(() => {
     const loadedSources = new Set<string>();
     let active = true;
@@ -976,11 +1064,15 @@ export function AdminEventDetailPage({ eventId }: { eventId: string }) {
   );
   async function setEventStatus(status: (typeof STATUSES)[number]) {
     if (!event) return;
-    if (
-      (status === "closed" || status === "cancelled") &&
-      !window.confirm(`¿Confirmas cambiar el evento a ${statusName[status]?.toLowerCase()}?`)
-    )
-      return;
+    if (status === "closed" || status === "cancelled") {
+      const confirmed = await confirm({
+        title: `¿${status === "cancelled" ? "Cancelar" : "Cerrar"} el evento?`,
+        description: `El estado del evento cambiará a ${statusName[status]?.toLowerCase()}.`,
+        confirmLabel: status === "cancelled" ? "Cancelar evento" : "Cerrar evento",
+        destructive: true,
+      });
+      if (!confirmed) return;
+    }
     setSavingStatus(true);
     try {
       await adminSaveEvent({
@@ -989,7 +1081,6 @@ export function AdminEventDetailPage({ eventId }: { eventId: string }) {
         description: event.description,
         startsAt: event.startsAt.toDate().toISOString(),
         opensAt: event.opensAt.toDate().toISOString(),
-        band: event.band,
         status,
       });
       toast.success(`Evento ${statusName[status]?.toLowerCase() ?? status}.`);
@@ -999,13 +1090,64 @@ export function AdminEventDetailPage({ eventId }: { eventId: string }) {
       setSavingStatus(false);
     }
   }
+  async function removeEvent() {
+    if (!event) return;
+    const confirmed = await confirm({
+      title: `¿Eliminar “${event.name}”?`,
+      description:
+        "Se eliminarán el evento, sus mesas y sus reservaciones. Esta acción no se puede deshacer.",
+      confirmLabel: "Eliminar evento",
+      destructive: true,
+    });
+    if (!confirmed) return;
+    setDeletingEvent(true);
+    try {
+      await adminDeleteEvent({ eventId: event.id });
+      toast.success("Evento eliminado.");
+      void navigate({ to: "/admin/eventos" });
+    } catch (cause) {
+      toast.error(cause instanceof Error ? cause.message : "No se pudo eliminar el evento.");
+    } finally {
+      setDeletingEvent(false);
+    }
+  }
   async function cancel(uid: string, nickname: string) {
-    if (!window.confirm(`¿Cancelar la reservación de ${nickname}?`)) return;
+    const confirmed = await confirm({
+      title: `¿Cancelar la reservación de ${nickname}?`,
+      description: "El lugar volverá a estar disponible para otra persona.",
+      confirmLabel: "Cancelar reservación",
+      destructive: true,
+    });
+    if (!confirmed) return;
     try {
       await adminCancelReservation({ eventId, uid });
       toast.success("Reservación cancelada; se liberó un lugar.");
     } catch (cause) {
       toast.error(cause instanceof Error ? cause.message : "No se pudo cancelar la reservación.");
+    }
+  }
+  async function deleteTable(table: AdminTable) {
+    if (table.reservedCount > 0) {
+      toast.warning("Cancela primero las reservaciones activas de esta mesa.");
+      return;
+    }
+    const confirmed = await confirm({
+      title: `¿Eliminar “${table.name}” de este evento?`,
+      description: "Esta acción no se puede deshacer.",
+      confirmLabel: "Eliminar mesa",
+      destructive: true,
+    });
+    if (!confirmed) return;
+    setDeletingTableId(table.id);
+    try {
+      await adminDeleteTable({ eventId, tableId: table.id });
+      if (tableEditor?.id === table.id) setTableEditor(undefined);
+      if (tableFilter === table.id) setTableFilter("all");
+      toast.success(`Se eliminó ${table.name} del evento.`);
+    } catch (cause) {
+      toast.error(cause instanceof Error ? cause.message : "No se pudo eliminar la mesa.");
+    } finally {
+      setDeletingTableId(null);
     }
   }
   if (loading)
@@ -1035,10 +1177,11 @@ export function AdminEventDetailPage({ eventId }: { eventId: string }) {
         </p>
       )}
       <section className={editing ? "" : "overflow-hidden bg-card pixel-frame"}>
-        {!editing && <div className={cn("h-2 bg-band", event.band)} />}
+        {!editing && <div className={cn("h-2 bg-band", getEventBand(event.startsAt.toDate()))} />}
         {editing ? (
           <EventEditor
             initial={event}
+            onCancel={() => setEditing(false)}
             onSaved={() => {
               setEditing(false);
               toast.success("Cambios guardados.");
@@ -1046,16 +1189,9 @@ export function AdminEventDetailPage({ eventId }: { eventId: string }) {
           />
         ) : (
           <>
-            <div className="flex flex-wrap items-start justify-between gap-4 p-5 sm:p-6">
-              <div>
-                <StatusBadge status={event.status} />
-                {event.description && (
-                  <p className="mt-3 max-w-3xl whitespace-pre-wrap leading-relaxed text-muted-foreground">
-                    {event.description}
-                  </p>
-                )}
-              </div>
-              <div className="flex flex-wrap gap-2">
+            <div className="flex flex-wrap items-center gap-3 p-4 sm:gap-4 sm:p-6">
+              <StatusBadge status={event.status} />
+              <div className="flex w-full flex-wrap items-center gap-2 sm:ml-auto sm:w-auto sm:flex-nowrap sm:justify-end">
                 <Button
                   variant="pixel-neutral"
                   size="icon"
@@ -1066,9 +1202,19 @@ export function AdminEventDetailPage({ eventId }: { eventId: string }) {
                 >
                   <Pencil aria-hidden="true" />
                 </Button>
+                <Button
+                  variant="pixel-danger"
+                  size="icon"
+                  aria-label="Eliminar evento"
+                  title="Eliminar evento"
+                  disabled={deletingEvent}
+                  onClick={() => void removeEvent()}
+                >
+                  <Trash2 aria-hidden="true" />
+                </Button>
                 <select
                   aria-label="Estado del evento"
-                  className="form-control"
+                  className="form-control min-w-0 flex-1 sm:flex-none"
                   value={event.status}
                   disabled={savingStatus}
                   onChange={(e) => void setEventStatus(e.target.value as (typeof STATUSES)[number])}
@@ -1080,6 +1226,11 @@ export function AdminEventDetailPage({ eventId }: { eventId: string }) {
                   ))}
                 </select>
               </div>
+              {event.description && (
+                <p className="basis-full max-w-3xl whitespace-pre-wrap leading-relaxed text-muted-foreground">
+                  {event.description}
+                </p>
+              )}
             </div>
             <dl className="grid gap-3 border-t-2 border-wood-dark/10 bg-parchment/45 p-5 text-sm sm:grid-cols-2 sm:p-6">
               <div className="flex items-start gap-3">
@@ -1117,7 +1268,7 @@ export function AdminEventDetailPage({ eventId }: { eventId: string }) {
           </Button>
         </div>
         {tableEditor !== undefined && (
-          <div className="mb-5">
+          <div ref={tableEditorRef} className="mb-5 scroll-mt-24">
             <TableEditor
               key={tableEditor?.id ?? "new-table"}
               eventId={eventId}
@@ -1130,9 +1281,9 @@ export function AdminEventDetailPage({ eventId }: { eventId: string }) {
           <p className="bg-card p-4 pixel-frame">No hay mesas configuradas.</p>
         ) : (
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {tables.map((table) => (
+            {tables.map((table, index) => (
               <article key={table.id} className="flex flex-col bg-card pixel-frame">
-                <div className={cn("h-1.5 bg-band", event.band)} />
+                <div className={cn("h-1.5 bg-band", getTableBand(index))} />
                 <div className="flex flex-1 flex-col p-4">
                   <div className="flex items-start justify-between gap-2">
                     <h3 className="font-display text-lg font-bold">{table.name}</h3>
@@ -1165,16 +1316,40 @@ export function AdminEventDetailPage({ eventId }: { eventId: string }) {
                     {table.host || "Por asignar"}
                   </p>
                   {table.game && <p className="mt-1 text-sm text-muted-foreground">{table.game}</p>}
-                  <Button
-                    variant="pixel-neutral"
-                    size="icon"
-                    aria-label={`Editar mesa ${table.name}`}
-                    title={`Editar mesa ${table.name}`}
-                    className="mt-3"
-                    onClick={() => setTableEditor(table)}
-                  >
-                    <Pencil aria-hidden="true" />
-                  </Button>
+                  <div className="mt-3 flex gap-2">
+                    <div className="flex items-center gap-2">
+                      <Button
+                        variant="pixel-neutral"
+                        size="icon"
+                        aria-label={`${tableEditor?.id === table.id ? "Editando" : "Editar"} mesa ${table.name}`}
+                        aria-pressed={tableEditor?.id === table.id}
+                        title={
+                          tableEditor?.id === table.id
+                            ? "Editando esta mesa"
+                            : `Editar mesa ${table.name}`
+                        }
+                        disabled={tableEditor?.id === table.id}
+                        onClick={() => setTableEditor(table)}
+                      >
+                        <Pencil aria-hidden="true" />
+                      </Button>
+                    </div>
+                    <Button
+                      variant="pixel-danger"
+                      size="icon"
+                      aria-label={`Eliminar mesa ${table.name}`}
+                      title={`Eliminar mesa ${table.name}`}
+                      disabled={deletingTableId === table.id}
+                      onClick={() => void deleteTable(table)}
+                    >
+                      <Trash2 aria-hidden="true" />
+                    </Button>
+                    {tableEditor?.id === table.id && (
+                      <span className="self-center font-pixel text-[0.65rem] uppercase text-seat-open">
+                        Editando...
+                      </span>
+                    )}
+                  </div>
                 </div>
               </article>
             ))}
@@ -1321,6 +1496,7 @@ function TableEditor({
   initial: AdminTable | null;
   onDone: () => void;
 }) {
+  const confirm = useAdminConfirm();
   const [name, setName] = useState(initial?.name ?? "");
   const [capacity, setCapacity] = useState(String(initial?.capacity ?? 4));
   const [status, setStatus] = useState<"active" | "closed">(initial?.status ?? "active");
@@ -1335,12 +1511,15 @@ function TableEditor({
       toast.error("Indica el nombre del Master o anfitrión de la mesa.");
       return;
     }
-    if (
-      initial?.status === "active" &&
-      status === "closed" &&
-      !window.confirm("¿Desactivar esta mesa? Las reservaciones existentes se conservarán.")
-    )
-      return;
+    if (initial?.status === "active" && status === "closed") {
+      const confirmed = await confirm({
+        title: "¿Desactivar esta mesa?",
+        description: "Las reservaciones existentes se conservarán.",
+        confirmLabel: "Desactivar mesa",
+        destructive: true,
+      });
+      if (!confirmed) return;
+    }
     setBusy(true);
     try {
       await adminSaveTable({

@@ -19,8 +19,10 @@ suite("Firestore production security rules", () => {
     await env.clearFirestore();
     await env.withSecurityRulesDisabled(async (ctx) => {
       await setDoc(doc(ctx.firestore(), "events/pub"), { status: "published" });
+      await setDoc(doc(ctx.firestore(), "events/cancelled"), { status: "cancelled" });
       await setDoc(doc(ctx.firestore(), "events/draft"), { status: "draft" });
       await setDoc(doc(ctx.firestore(), "events/pub/tables/a"), { reservedCount: 0 });
+      await setDoc(doc(ctx.firestore(), "events/cancelled/tables/a"), { reservedCount: 0 });
       await setDoc(doc(ctx.firestore(), "events/pub/reservations/user-a"), { status: "confirmed" });
     });
   });
@@ -29,6 +31,11 @@ suite("Firestore production security rules", () => {
     expect((await getDoc(doc(db, "events/pub"))).exists()).toBe(true);
     await expect(getDoc(doc(db, "events/draft"))).rejects.toThrow();
     expect((await getDoc(doc(db, "events/pub/tables/a"))).exists()).toBe(true);
+  });
+  it("allows public reads of cancelled events and their tables so the status can be shown", async () => {
+    const db = env.unauthenticatedContext().firestore();
+    expect((await getDoc(doc(db, "events/cancelled"))).exists()).toBe(true);
+    expect((await getDoc(doc(db, "events/cancelled/tables/a"))).exists()).toBe(true);
   });
   it("allows reading only the caller's reservation", async () => {
     const db = env.authenticatedContext("user-a").firestore();

@@ -55,20 +55,6 @@ function dateTimestamp(value: unknown, name: string): Timestamp {
 
 const EVENT_STATUSES = ["draft", "published", "closed", "cancelled"] as const;
 const RESTAURANT_TIMEZONE = "America/Chihuahua";
-const BANDS = [
-  "band-provision",
-  "band-banquete",
-  "band-bestiario",
-  "band-postres",
-  "band-pociones",
-  "band-lattes",
-  "band-cafes",
-  "band-otros",
-  "band-temporada",
-  "band-sylhar",
-  "band-croacoco",
-] as const;
-
 const WEEKDAYS = [
   "monday",
   "tuesday",
@@ -207,7 +193,6 @@ export interface AdminSaveEventData {
   description: string;
   startsAt: string;
   opensAt: string;
-  band: string;
   status: string;
 }
 
@@ -220,9 +205,6 @@ export async function adminSaveEventHandler(request: AdminRequest<AdminSaveEvent
     throw new HttpsError("invalid-argument", "eventId is invalid.");
   if (!(EVENT_STATUSES as readonly string[]).includes(data.status))
     throw new HttpsError("invalid-argument", "Event status is invalid.");
-  if (!(BANDS as readonly string[]).includes(data.band))
-    throw new HttpsError("invalid-argument", "Event band is invalid.");
-
   const startsAt = dateTimestamp(data.startsAt, "startsAt");
   const opensAt = dateTimestamp(data.opensAt, "opensAt");
   if (opensAt.toMillis() > startsAt.toMillis()) {
@@ -235,7 +217,6 @@ export async function adminSaveEventHandler(request: AdminRequest<AdminSaveEvent
     startsAt,
     opensAt,
     timezone: RESTAURANT_TIMEZONE,
-    band: data.band,
     status: data.status,
     updatedAt: FieldValue.serverTimestamp(),
   };
@@ -244,7 +225,7 @@ export async function adminSaveEventHandler(request: AdminRequest<AdminSaveEvent
     const eventRef = adminDb.doc(`events/${data.eventId}`);
     const eventSnapshot = await eventRef.get();
     if (!eventSnapshot.exists) throw new HttpsError("not-found", "Event not found.");
-    await eventRef.set(eventFields, { merge: true });
+    await eventRef.set({ ...eventFields, band: FieldValue.delete() }, { merge: true });
     return { eventId: eventRef.id };
   }
 
@@ -344,6 +325,78 @@ export async function adminSaveTableHandler(request: AdminRequest<AdminSaveTable
     else transaction.set(tableRef, { ...table, createdAt: FieldValue.serverTimestamp() });
   });
   return { tableId: tableRef.id };
+}
+
+export interface AdminDeleteTableData {
+  eventId: string;
+  tableId: string;
+}
+
+export interface AdminDeleteEventData {
+  eventId: string;
+}
+
+export async function adminDeleteEventHandler(request: AdminRequest<AdminDeleteEventData>) {
+  assertAdmin(request);
+  const eventId = request.data?.eventId;
+  if (!isDocumentId(eventId)) {
+    throw new HttpsError("invalid-argument", "eventId is required.");
+  }
+  const eventRef = adminDb.doc(`events/${eventId}`);
+  await adminDb.runTransaction(async (transaction) => {
+    const eventSnapshot = await transaction.get(eventRef);
+    if (!eventSnapshot.exists) throw new HttpsError("not-found", "Event not found.");
+    // Close the event transactionally first, preventing new reservations while
+    // its subcollections are being recursively removed.
+    transaction.update(eventRef, { status: "closed", updatedAt: FieldValue.serverTimestamp() });
+  });
+  await adminDb.recursiveDelete(eventRef);
+  return { deleted: true };
+}
+
+export async function adminDeleteTableHandler(request: AdminRequest<AdminDeleteTableData>) {
+  assertAdmin(request);
+  const data = request.data;
+  if (!data || !isDocumentId(data.eventId) || !isDocumentId(data.tableId)) {
+    throw new HttpsError("invalid-argument", "eventId and tableId are required.");
+  }
+
+  const eventRef = adminDb.doc(`events/${data.eventId}`);
+  const tableRef = eventRef.collection("tables").doc(data.tableId);
+  const reservationsQuery = eventRef
+    .collection("reservations")
+    .where("tableId", "==", data.tableId);
+
+  await adminDb.runTransaction(async (transaction) => {
+    const eventSnapshot = await transaction.get(eventRef);
+    if (!eventSnapshot.exists) throw new HttpsError("not-found", "Event not found.");
+
+    const tableSnapshot = await transaction.get(tableRef);
+    if (!tableSnapshot.exists) throw new HttpsError("not-found", "Table not found.");
+
+    const reservationsSnapshot = await transaction.get(reservationsQuery);
+    const activeReservations = reservationsSnapshot.docs.filter(
+      (reservation) => reservation.data().status === "confirmed",
+    );
+    const reservedCount = tableSnapshot.data()?.reservedCount;
+    if (
+      typeof reservedCount !== "number" ||
+      !Number.isInteger(reservedCount) ||
+      reservedCount < 0 ||
+      reservedCount !== activeReservations.length
+    ) {
+      throw new HttpsError("failed-precondition", "Table reservation count is inconsistent.");
+    }
+    if (activeReservations.length > 0) {
+      throw new HttpsError(
+        "failed-precondition",
+        "Cancel confirmed reservations before deleting this table.",
+      );
+    }
+
+    transaction.delete(tableRef);
+  });
+  return { deleted: true };
 }
 
 export interface AdminCancelReservationData {

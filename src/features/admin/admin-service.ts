@@ -57,7 +57,9 @@ export interface WeeklyTableTemplates {
 
 const events = collection(firebaseFirestore, "events");
 const saveEventCall = httpsCallable(firebaseFunctions, "adminSaveEvent");
+const deleteEventCall = httpsCallable(firebaseFunctions, "adminDeleteEvent");
 const saveTableCall = httpsCallable(firebaseFunctions, "adminSaveTable");
+const deleteTableCall = httpsCallable(firebaseFunctions, "adminDeleteTable");
 const cancelReservationCall = httpsCallable(firebaseFunctions, "adminCancelReservation");
 const getWeeklyTemplatesCall = httpsCallable(firebaseFunctions, "adminGetWeeklyTemplates");
 const saveWeeklyTemplatesCall = httpsCallable(firebaseFunctions, "adminSaveWeeklyTemplates");
@@ -165,9 +167,15 @@ export async function adminSaveEvent(input: Record<string, unknown>): Promise<st
   const result = await saveEventCall(input);
   return (result.data as { eventId: string }).eventId;
 }
+export async function adminDeleteEvent(input: { eventId: string }): Promise<void> {
+  await deleteEventCall(input);
+}
 export async function adminSaveTable(input: Record<string, unknown>): Promise<string> {
   const result = await saveTableCall(input);
   return (result.data as { tableId: string }).tableId;
+}
+export async function adminDeleteTable(input: { eventId: string; tableId: string }): Promise<void> {
+  await deleteTableCall(input);
 }
 export async function adminCancelReservation(input: {
   eventId: string;

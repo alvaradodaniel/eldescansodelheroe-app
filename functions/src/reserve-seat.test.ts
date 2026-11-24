@@ -25,7 +25,6 @@ async function seedEvent(options?: {
     opensAt: options?.opensAt ?? Timestamp.fromMillis(Date.now() - 1_000),
     timezone: "America/Chihuahua",
     status: "published",
-    band: "band-provision",
     createdAt: Timestamp.now(),
     updatedAt: Timestamp.now(),
   });
@@ -90,6 +89,16 @@ describe("reserveSeat with Firebase Emulator Suite", () => {
 
     await expect(
       reserveSeatHandler(request({ eventId, tableId, nickname: "Cora" }, "uid-event-closed")),
+    ).rejects.toMatchObject({ code: "failed-precondition" });
+  });
+
+  it("rejects reservations after the event has started", async () => {
+    await adminDb.doc(`events/${eventId}`).update({
+      startsAt: Timestamp.fromMillis(Date.now() - 1_000),
+    });
+
+    await expect(
+      reserveSeatHandler(request({ eventId, tableId, nickname: "Cora" }, "uid-event-past")),
     ).rejects.toMatchObject({ code: "failed-precondition" });
   });
 

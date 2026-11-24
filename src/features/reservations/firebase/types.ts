@@ -7,7 +7,6 @@ export interface EventDocument {
   opensAt: Timestamp;
   timezone: string;
   status: "draft" | "published" | "closed" | "cancelled";
-  band: string;
   createdAt: Timestamp;
   updatedAt: Timestamp;
 }

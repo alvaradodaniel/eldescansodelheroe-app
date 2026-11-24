@@ -4,9 +4,13 @@ import { CalendarDays, Armchair, BadgeCheck } from "lucide-react";
 
 import { AppFooter } from "@/components/layout/AppFooter";
 import { AppHeader } from "@/components/layout/AppHeader";
-import { EventCard } from "@/features/reservations/components/EventCard";
+import { EventCard, EventCardSkeleton } from "@/features/reservations/components/EventCard";
 import { usePublishedEvents } from "@/features/reservations/firebase/use-published-events";
 import { toReservationEvent } from "@/features/reservations/firebase/reservation-adapters";
+import {
+  isEventPubliclyVisible,
+  PUBLIC_EVENT_RETENTION_MS,
+} from "@/features/reservations/event-lifecycle";
 
 const LOGO_URL = "/images/brand/logo.png";
 const TAVERNA_URL = "/images/brand/taberna.webp";
@@ -54,17 +58,23 @@ function HomePage() {
   const { events, loading, error } = usePublishedEvents();
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
-    const nextOpening = events
-      .map((event) => event.opensAt.toMillis())
-      .filter((opensAt) => opensAt > now)
+    const nextBoundary = events
+      .flatMap((event) => {
+        const startsAt = event.startsAt.toMillis();
+        return [event.opensAt.toMillis(), startsAt, startsAt + PUBLIC_EVENT_RETENTION_MS];
+      })
+      .filter((timestamp) => timestamp > now)
       .sort((a, b) => a - b)[0];
-    if (nextOpening === undefined) return;
+    if (nextBoundary === undefined) return;
     const timer = window.setTimeout(
       () => setNow(Date.now()),
-      Math.min(nextOpening - now, 2_147_000_000),
+      Math.min(nextBoundary - now, 2_147_000_000),
     );
     return () => window.clearTimeout(timer);
   }, [events, now]);
+  const visibleEvents = events.filter((event) =>
+    isEventPubliclyVisible(event.startsAt.toDate(), now),
+  );
   return (
     <>
       <AppHeader />
@@ -146,19 +156,19 @@ function HomePage() {
                 aria-busy="true"
               >
                 {Array.from({ length: 3 }, (_, index) => (
-                  <div key={index} className="h-56 animate-pulse bg-card pixel-frame" />
+                  <EventCardSkeleton key={index} />
                 ))}
               </div>
             ) : error ? (
               <p role="alert" className="col-span-full text-center text-destructive">
                 No pudimos cargar los eventos. Comprueba tu conexión e inténtalo de nuevo.
               </p>
-            ) : events.length === 0 ? (
+            ) : visibleEvents.length === 0 ? (
               <p className="col-span-full text-center text-muted-foreground">
                 No hay eventos publicados por el momento. Vuelve pronto.
               </p>
             ) : (
-              events.map((record) => {
+              visibleEvents.map((record) => {
                 const event = toReservationEvent(record, now);
                 return <EventCard key={event.id} event={event} />;
               })

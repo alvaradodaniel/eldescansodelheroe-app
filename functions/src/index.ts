@@ -27,6 +27,11 @@ export const adminSaveEvent = onCall(async (request) => {
   return adminSaveEventHandler(request);
 });
 
+export const adminDeleteEvent = onCall(async (request) => {
+  const { adminDeleteEventHandler } = await import("./admin.js");
+  return adminDeleteEventHandler(request);
+});
+
 export const adminGetWeeklyTemplates = onCall(async (request) => {
   const { adminGetWeeklyTemplatesHandler } = await import("./admin.js");
   return adminGetWeeklyTemplatesHandler(request);
@@ -40,6 +45,11 @@ export const adminSaveWeeklyTemplates = onCall(async (request) => {
 export const adminSaveTable = onCall(async (request) => {
   const { adminSaveTableHandler } = await import("./admin.js");
   return adminSaveTableHandler(request);
+});
+
+export const adminDeleteTable = onCall(async (request) => {
+  const { adminDeleteTableHandler } = await import("./admin.js");
+  return adminDeleteTableHandler(request);
 });
 
 export const adminCancelReservation = onCall(async (request) => {

@@ -15,7 +15,7 @@ import { Button } from "@/components/ui/button";
 import { Toaster } from "@/components/ui/sonner";
 import { toast } from "sonner";
 import { Countdown } from "@/features/reservations/components/Countdown";
-import { TableCard } from "@/features/reservations/components/TableCard";
+import { TableCard, TableCardSkeleton } from "@/features/reservations/components/TableCard";
 import { useEvent } from "@/features/reservations/firebase/use-event";
 import { useEventTables } from "@/features/reservations/firebase/use-event-tables";
 import {
@@ -31,6 +31,11 @@ import {
 } from "@/features/reservations/firebase/reservation-service";
 import { useAuthUser } from "@/hooks/use-auth-user";
 import { getTableState } from "@/features/reservations/table-state";
+import { getTableBand } from "@/features/reservations/visual-bands";
+import {
+  isEventPubliclyVisible,
+  PUBLIC_EVENT_RETENTION_MS,
+} from "@/features/reservations/event-lifecycle";
 
 export const Route = createFileRoute("/eventos/$eventoId")({ component: EventRoute });
 
@@ -62,6 +67,7 @@ function EventPage({ eventoId }: { eventoId: string }) {
   const eventState = useEvent(eventoId);
   const eventId = eventState.event?.id ?? null;
   const opensAtMillis = eventState.event?.opensAt.toMillis() ?? null;
+  const startsAtMillis = eventState.event?.startsAt.toMillis() ?? null;
   const [clientTime, setClientTime] = useState(() => Date.now());
   const tableState = useEventTables(eventId);
   const event = eventState.event ? toReservationEvent(eventState.event, clientTime) : null;
@@ -80,19 +86,20 @@ function EventPage({ eventoId }: { eventoId: string }) {
   const [submittingTableId, setSubmittingTableId] = useState<string | null>(null);
 
   useEffect(() => {
-    if (opensAtMillis === null || opensAtMillis <= Date.now()) return;
-    let timer = 0;
-    const updateAtOpen = () => {
-      const remaining = opensAtMillis - Date.now();
-      if (remaining <= 0) {
-        setClientTime(Date.now());
-        return;
-      }
-      timer = window.setTimeout(updateAtOpen, Math.min(remaining, 2_147_000_000));
-    };
-    updateAtOpen();
+    const nextBoundary = [
+      opensAtMillis,
+      startsAtMillis,
+      startsAtMillis === null ? null : startsAtMillis + PUBLIC_EVENT_RETENTION_MS,
+    ]
+      .filter((value): value is number => value !== null && value > Date.now())
+      .sort((a, b) => a - b)[0];
+    if (nextBoundary === undefined) return;
+    const timer = window.setTimeout(
+      () => setClientTime(Date.now()),
+      Math.min(nextBoundary - Date.now(), 2_147_000_000),
+    );
     return () => window.clearTimeout(timer);
-  }, [opensAtMillis]);
+  }, [opensAtMillis, startsAtMillis]);
 
   useEffect(() => {
     reservePendingRef.current = false;
@@ -140,13 +147,23 @@ function EventPage({ eventoId }: { eventoId: string }) {
   }, [eventId, auth.uid]);
 
   async function submitReservation(tableId: string) {
+    if (reservationLoading) return;
+    if (reservation) {
+      toast.warning(
+        reservation.tableId === tableId
+          ? "Ya perteneces a esta mesa."
+          : "Ya te encuentras en otra mesa y no puedes reservar en más de una mesa del mismo evento.",
+        { duration: 5500 },
+      );
+      return;
+    }
     const cleanNickname = nickname.trim();
     if (cleanNickname.length < 2) {
       setNicknameEditing(true);
       toast.warning("Antes de reservar, escribe y guarda tu nombre o alias.", { duration: 5500 });
       return;
     }
-    if (!event || reservation || reservationLoading || !auth.uid || busyRef.current) return;
+    if (!event || !available || !auth.uid || busyRef.current) return;
     busyRef.current = true;
     reservePendingRef.current = true;
     reserveObservedRef.current = false;
@@ -207,6 +224,9 @@ function EventPage({ eventoId }: { eventoId: string }) {
 
   const activeTable = reservation ? tables.find((table) => table.id === reservation.tableId) : null;
   const available = event ? event.status === "open" : false;
+  const eventExpired =
+    eventState.event !== null &&
+    !isEventPubliclyVisible(eventState.event.startsAt.toDate(), clientTime);
 
   return (
     <>
@@ -226,22 +246,54 @@ function EventPage({ eventoId }: { eventoId: string }) {
       <AppHeader />
       <main>
         {eventState.loading ? (
-          <div
-            className="mx-auto max-w-6xl space-y-4 px-5 py-12 sm:px-6"
-            aria-label="Cargando evento"
-            aria-busy="true"
-          >
-            <div className="h-10 w-2/3 animate-pulse bg-muted" />
-            <div className="h-5 w-1/2 animate-pulse bg-muted" />
-            <div className="h-24 animate-pulse bg-muted" />
+          <div aria-label="Cargando evento" aria-busy="true">
+            <section className="relative isolate overflow-hidden">
+              <img
+                src="/images/brand/mesa-de-juego.webp"
+                alt=""
+                className="pixelated absolute inset-0 -z-20 h-full w-full object-cover"
+              />
+              <div className="absolute inset-0 -z-10 night-veil" />
+              <div className="mx-auto max-w-6xl px-5 pb-10 pt-6 sm:px-6 md:pb-14 md:pt-10">
+                <div className="h-8 w-36 animate-pulse border-2 border-cream/20 bg-wood-dark/70 shadow-pixel-sm" />
+                <div className="mt-5 h-12 w-2/3 max-w-3xl animate-pulse bg-cream/20 sm:h-14" />
+                <div className="mt-4 h-5 w-1/2 max-w-2xl animate-pulse bg-cream/15" />
+                <div className="mt-6 grid max-w-3xl gap-3 border-2 border-gold/30 bg-wood-dark/80 p-4 shadow-pixel-sm sm:grid-cols-2 sm:gap-0 sm:p-5">
+                  {[0, 1].map((item) => (
+                    <div
+                      key={item}
+                      className="space-y-2 border-b border-cream/15 pb-3 last:border-0 last:pb-0 sm:border-b-0 sm:pb-0 sm:pr-5"
+                    >
+                      <div className="h-3 w-32 animate-pulse bg-gold/30" />
+                      <div className="h-4 w-4/5 animate-pulse bg-cream/20" />
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </section>
+            <section className="mx-auto mt-10 max-w-6xl px-5 sm:px-6">
+              <div className="mb-5 flex items-center justify-between">
+                <div className="h-8 w-28 animate-pulse bg-wood-dark/10" />
+                <div className="h-4 w-16 animate-pulse bg-wood-dark/10" />
+              </div>
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                {Array.from({ length: 3 }, (_, index) => (
+                  <TableCardSkeleton key={index} />
+                ))}
+              </div>
+            </section>
           </div>
         ) : eventState.error ? (
           <StateMessage text="No pudimos cargar este evento. Comprueba tu conexión e inténtalo de nuevo." />
+        ) : eventExpired ? (
+          <StateMessage text="Este evento terminó hace más de dos días y ya no está disponible." />
         ) : !event ? (
           <StateMessage text="Este evento no existe o ya no está publicado." />
         ) : (
           <>
-            <section className={`relative isolate overflow-hidden ${event.band}`}>
+            <section
+              className={`relative isolate overflow-hidden ${event.band} ${event.past ? "grayscale" : ""}`}
+            >
               <img
                 src="/images/brand/mesa-de-juego.webp"
                 alt=""
@@ -309,7 +361,11 @@ function EventPage({ eventoId }: { eventoId: string }) {
                         {reservation.nickname}
                       </p>
                     </div>
-                    {cancelAsk ? (
+                    {event.past ? (
+                      <p className="border-l-4 border-muted-foreground/40 pl-3 text-sm text-muted-foreground">
+                        El evento ya pasó; la reservación quedó como registro.
+                      </p>
+                    ) : cancelAsk ? (
                       <div>
                         <p>¿Confirmas que quieres cancelar tu reserva?</p>
                         <div className="mt-3 flex gap-3">
@@ -343,7 +399,14 @@ function EventPage({ eventoId }: { eventoId: string }) {
               </section>
             )}
             <section className="mx-auto mt-6 max-w-6xl px-5 sm:px-6">
-              {event.status === "published" ? (
+              {event.past ? (
+                <div className="border-y-2 border-wood-dark/20 bg-muted/45 py-4">
+                  <p className="font-display text-xl font-bold text-muted-foreground">
+                    Este evento ya pasó
+                  </p>
+                  <p className="text-muted-foreground">Las reservaciones están cerradas.</p>
+                </div>
+              ) : event.status === "published" ? (
                 <div className="border-y-2 border-gold-deep/40 py-5 text-center">
                   <p className="font-pixel text-sm uppercase tracking-widest text-primary">
                     Las reservaciones abren en
@@ -384,7 +447,7 @@ function EventPage({ eventoId }: { eventoId: string }) {
                   aria-busy="true"
                 >
                   {Array.from({ length: 3 }, (_, index) => (
-                    <div key={index} className="h-52 animate-pulse bg-card pixel-frame" />
+                    <TableCardSkeleton key={index} />
                   ))}
                 </div>
               ) : tableState.error ? (
@@ -395,78 +458,82 @@ function EventPage({ eventoId }: { eventoId: string }) {
                 </p>
               ) : (
                 <>
-                  <div className="parchment-panel pixel-frame mt-5 flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
-                    <div className="flex items-start gap-3">
-                      <span className="flex size-10 shrink-0 items-center justify-center bg-secondary text-secondary-foreground">
-                        <UserRound className="size-5" aria-hidden="true" />
-                      </span>
-                      <div>
-                        <p className="font-display text-lg font-bold">
-                          ¿Con qué nombre reservamos?
-                        </p>
-                        <p className="text-sm text-muted-foreground">
-                          Lo usarás para identificar tu lugar en el evento.
-                        </p>
+                  {!event.past && (
+                    <>
+                      <div className="parchment-panel pixel-frame mt-5 flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
+                        <div className="flex items-start gap-3">
+                          <span className="flex size-10 shrink-0 items-center justify-center bg-secondary text-secondary-foreground">
+                            <UserRound className="size-5" aria-hidden="true" />
+                          </span>
+                          <div>
+                            <p className="font-display text-lg font-bold">
+                              ¿Con qué nombre reservamos?
+                            </p>
+                            <p className="text-sm text-muted-foreground">
+                              Lo usarás para identificar tu lugar en el evento.
+                            </p>
+                          </div>
+                        </div>
+                        <div className="flex w-full flex-col gap-2 sm:max-w-sm sm:flex-row">
+                          <input
+                            aria-label="Nombre o alias"
+                            className="form-control min-w-0 flex-1"
+                            value={nickname}
+                            maxLength={30}
+                            autoComplete="nickname"
+                            disabled={!nicknameEditing || busy}
+                            onChange={(e) => setNickname(e.target.value)}
+                            placeholder="Ej. Sir Galahad"
+                          />
+                          <Button
+                            className="my-auto"
+                            variant={nicknameEditing ? "pixel-positive" : "pixel-neutral"}
+                            disabled={busy || (nicknameEditing && nickname.trim().length < 2)}
+                            onClick={() => {
+                              if (!nicknameEditing) {
+                                setNicknameEditing(true);
+                                return;
+                              }
+                              const clean = nickname.trim();
+                              setNickname(clean);
+                              saveNickname(clean);
+                              setNicknameEditing(false);
+                            }}
+                          >
+                            {nicknameEditing ? (
+                              "Guardar nombre"
+                            ) : (
+                              <>
+                                <PencilLine className="size-4" aria-hidden="true" />
+                                Editar nombre
+                              </>
+                            )}
+                          </Button>
+                        </div>
                       </div>
-                    </div>
-                    <div className="flex w-full flex-col gap-2 sm:max-w-sm sm:flex-row">
-                      <input
-                        aria-label="Nombre o alias"
-                        className="form-control min-w-0 flex-1"
-                        value={nickname}
-                        maxLength={30}
-                        autoComplete="nickname"
-                        disabled={!nicknameEditing || busy}
-                        onChange={(e) => setNickname(e.target.value)}
-                        placeholder="Ej. Sir Galahad"
-                      />
-                      <Button
-                        className="my-auto"
-                        variant={nicknameEditing ? "pixel-positive" : "pixel-neutral"}
-                        disabled={busy || (nicknameEditing && nickname.trim().length < 2)}
-                        onClick={() => {
-                          if (!nicknameEditing) {
-                            setNicknameEditing(true);
-                            return;
-                          }
-                          const clean = nickname.trim();
-                          setNickname(clean);
-                          saveNickname(clean);
-                          setNicknameEditing(false);
-                        }}
-                      >
-                        {nicknameEditing ? (
-                          "Guardar nombre"
-                        ) : (
-                          <>
-                            <PencilLine className="size-4" aria-hidden="true" />
-                            Editar nombre
-                          </>
-                        )}
-                      </Button>
-                    </div>
-                  </div>
-                  {nickname.trim().length < 2 && (
-                    <p className="mt-3 text-sm text-destructive">
-                      Escribe un nombre de al menos 2 caracteres para elegir una mesa.
-                    </p>
+                      {nickname.trim().length < 2 && (
+                        <p className="mt-3 text-sm text-destructive">
+                          Escribe un nombre de al menos 2 caracteres para elegir una mesa.
+                        </p>
+                      )}
+                    </>
                   )}
                   {auth.uid && (
                     <div className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                      {tables.map((table) => {
+                      {tables.map((table, index) => {
                         const state = getTableState(table, event.status);
                         return (
                           <TableCard
                             key={table.id}
                             table={table}
                             state={state}
+                            bandClass={getTableBand(index)}
                             selected={
                               submittingTableId === table.id || reservation?.tableId === table.id
                             }
+                            {...(reservation ? { reservationTableId: reservation.tableId } : {})}
                             pending={submittingTableId === table.id}
-                            disabled={
-                              busy || reservationLoading || Boolean(reservation) || !available
-                            }
+                            disabled={busy || reservationLoading || !available}
                             onSelect={() => void submitReservation(table.id)}
                           />
                         );

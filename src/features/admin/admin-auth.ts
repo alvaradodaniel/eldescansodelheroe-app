@@ -1,6 +1,8 @@
 import {
+  browserLocalPersistence,
   onAuthStateChanged,
   getIdTokenResult,
+  setPersistence,
   signInWithEmailAndPassword,
   signOut,
   type User,
@@ -16,6 +18,7 @@ export interface AdminSession {
 }
 
 export async function signInAdmin(email: string, password: string): Promise<void> {
+  await setPersistence(firebaseAuth, browserLocalPersistence);
   const credential = await signInWithEmailAndPassword(firebaseAuth, email.trim(), password);
   const token = await getIdTokenResult(credential.user, true);
   if (token.claims["admin"] !== true) {
@@ -51,12 +54,16 @@ export function useAdminSession(): AdminSession {
         }
         try {
           const token = await getIdTokenResult(user);
+          const verifiedToken =
+            token.claims["admin"] === true || user.isAnonymous
+              ? token
+              : await getIdTokenResult(user, true);
           if (generation !== currentGeneration || firebaseAuth.currentUser?.uid !== user.uid)
             return;
           setSession({
             loading: false,
             user,
-            isAdmin: token.claims["admin"] === true,
+            isAdmin: verifiedToken.claims["admin"] === true,
             error: null,
           });
         } catch {

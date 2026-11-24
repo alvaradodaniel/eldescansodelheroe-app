@@ -51,6 +51,8 @@ export function reservationErrorMessage(error: unknown): string {
     return "La mesa se cerró y ya no acepta reservas. Elige otra mesa disponible.";
   if (detail.includes("event is not open"))
     return "Este evento cerró y ya no recibe reservaciones.";
+  if (detail.includes("event has already started"))
+    return "Este evento ya pasó y no acepta más reservaciones.";
   if (detail.includes("reservations are not open yet"))
     return "Las reservaciones de este evento todavía no abren.";
   if (detail.includes("table capacity data is inconsistent"))
